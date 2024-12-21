@@ -24,8 +24,10 @@ export default defineContentScript({
     log("Loaded content script");
     const state: {
       activeElement: HTMLElement | null;
+      lastKeyEvent: KeyboardEvent | null;
     } = {
       activeElement: null,
+      lastKeyEvent: null,
     };
     document.documentElement.addEventListener("click", (event) => {
       if (event.target instanceof HTMLElement) {
@@ -38,14 +40,25 @@ export default defineContentScript({
       }
     });
     document.documentElement.addEventListener("keydown", (event) => {
+      let lastKeyEvent = state.lastKeyEvent;
+      state.lastKeyEvent = event;
       const element = state.activeElement || document.activeElement;
       if (!(element instanceof HTMLElement)) {
         return;
       }
-      const { key, ctrlKey } = event;
+      const { key, ctrlKey, shiftKey } = event;
       const isCtrlD = ctrlKey && key === "d";
       const isCtrlU = ctrlKey && key === "u";
-      let elementToScroll: Element | null = null;
+      const isDoubleG = lastKeyEvent
+        ? key === "g" &&
+          !(shiftKey || ctrlKey) &&
+          lastKeyEvent.key === "g" &&
+          !(lastKeyEvent.shiftKey || lastKeyEvent.ctrlKey) &&
+          lastKeyEvent.timeStamp - event.timeStamp < 100
+        : false;
+      const isShiftG = shiftKey && key === "G";
+      log(isShiftG);
+      let elementToScroll: HTMLElement | null = null;
       if (
         element instanceof HTMLInputElement ||
         element instanceof HTMLTextAreaElement
@@ -71,6 +84,12 @@ export default defineContentScript({
         elementToScroll.scrollBy({
           top: isCtrlU ? -(window.innerHeight / 2) : -70,
         });
+      } else if (isDoubleG) {
+        event.preventDefault();
+        elementToScroll.scrollTop = 0;
+      } else if (isShiftG) {
+        event.preventDefault();
+        elementToScroll.scrollTop = elementToScroll.scrollHeight;
       }
     });
   },
