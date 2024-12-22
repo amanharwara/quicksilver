@@ -47,8 +47,8 @@ export default defineContentScript({
         return;
       }
       const { key, ctrlKey, shiftKey } = event;
-      const isCtrlD = ctrlKey && key === "d";
-      const isCtrlU = ctrlKey && key === "u";
+      const isScrollHalfPageDown = !ctrlKey && key === "d";
+      const isScrollHalfPageUp = !ctrlKey && key === "e";
       const isDoubleG = lastKeyEvent
         ? key === "g" &&
           !(shiftKey || ctrlKey) &&
@@ -57,7 +57,6 @@ export default defineContentScript({
           lastKeyEvent.timeStamp - event.timeStamp < 100
         : false;
       const isShiftG = shiftKey && key === "G";
-      log(isShiftG);
       let elementToScroll: HTMLElement | null = null;
       if (
         element instanceof HTMLInputElement ||
@@ -74,15 +73,25 @@ export default defineContentScript({
       if (!elementToScroll) {
         elementToScroll = document.documentElement;
       }
-      if (key === "j" || isCtrlD) {
+      if (isScrollHalfPageDown) {
         event.preventDefault();
         elementToScroll.scrollBy({
-          top: isCtrlD ? window.innerHeight / 2 : 70,
+          top: window.innerHeight / 2,
         });
-      } else if (key === "k" || isCtrlU) {
+      } else if (key === "j") {
         event.preventDefault();
         elementToScroll.scrollBy({
-          top: isCtrlU ? -(window.innerHeight / 2) : -70,
+          top: 70,
+        });
+      } else if (isScrollHalfPageUp) {
+        event.preventDefault();
+        elementToScroll.scrollBy({
+          top: -(window.innerHeight / 2),
+        });
+      } else if (key === "k") {
+        event.preventDefault();
+        elementToScroll.scrollBy({
+          top: -70,
         });
       } else if (isDoubleG) {
         event.preventDefault();
