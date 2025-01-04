@@ -24,7 +24,7 @@ function createElement(
     };
     children?: HTMLElement[];
     text?: string;
-  } = {},
+  } = {}
 ) {
   const element = document.createElement(tag);
   const { styles, children, text } = options;
@@ -59,19 +59,6 @@ export default defineContentScript({
         let i = index + 97;
         return String.fromCharCode(i);
       });
-
-    function generateIDfromIndex(index: number) {
-      if (index <= 25) {
-        return letters[index];
-      }
-      let floor = Math.floor(index / 25);
-      let id = letters[floor];
-      let t = index;
-      for (let i = 0; i < floor; i++) {
-        id += letters[(t -= 25) % letters.length];
-      }
-      return id;
-    }
 
     const state: {
       activeElement: HTMLElement | null;
@@ -109,17 +96,50 @@ export default defineContentScript({
       }
     }
 
+    function generateIDsForLength(length: number) {
+      const ids: string[] = [];
+      let leaderKeys: string[] = [
+        letters[Math.floor(Math.random() * 10) % letters.length],
+      ];
+      let lettersWithoutLeader = letters.filter((l) => !leaderKeys.includes(l));
+      for (let i = 0; i < length; i++) {
+        let id = "";
+        const letter = lettersWithoutLeader.shift();
+        let leaderKey = leaderKeys.slice(0, leaderKeys.length - 1);
+        if (leaderKeys.length - 1 !== 0) {
+          id += leaderKey.join("");
+        }
+        if (letter) {
+          id += letter;
+        }
+        if (lettersWithoutLeader.length === 0) {
+          const lettersWithoutLatestLeaderKey = letters.filter(
+            (l) => !leaderKeys.includes(l)
+          );
+          const newLeaderKey =
+            lettersWithoutLatestLeaderKey[
+              Math.floor(Math.random() * 10) %
+                lettersWithoutLatestLeaderKey.length
+            ];
+          leaderKeys.push(newLeaderKey);
+          lettersWithoutLeader = letters.filter((l) => !leaderKeys.includes(l));
+        }
+        ids.push(id);
+      }
+      return ids;
+    }
+
     function highlightLinks() {
       clearAllHighlights();
       const links = document.querySelectorAll("a");
-      const linkRects = links
-        .values()
-        .map((linkEl) => linkEl.getBoundingClientRect())
-        .toArray();
+      const linkRects = Array.from(
+        links.values().map((linkEl) => linkEl.getBoundingClientRect())
+      );
+      const linkIDs = generateIDsForLength(links.length);
       for (let index = 0; index < links.length; index++) {
         const link = links[index];
         const linkRect = linkRects[index];
-        const id = generateIDfromIndex(index);
+        const id = linkIDs[index];
         const highlight = createElement("div", {
           styles: {
             position: "absolute",
@@ -149,14 +169,21 @@ export default defineContentScript({
     }
 
     function updateHighlightInput(key: string) {
-      const lengthRequired = idToHighlightMap.size;
-      if (lengthRequired <= 26) {
-        let ids = idToHighlightMap.keys();
-        if (ids.find((id) => id === key)) {
-          openLinkById(key);
+      state.highlightInput += key;
+      const ids = Array.from(idToHighlightMap.keys());
+      const filtered = ids.filter((id) => id.startsWith(state.highlightInput));
+      for (const [id, highlight] of idToHighlightMap) {
+        if (!filtered.includes(id)) {
+          highlight.remove();
+          idToHighlightMap.delete(id);
+          highlightToLinkMap.delete(highlight);
         }
-        clearAllHighlights();
+      }
+      if (filtered.length === 1) {
+        openLinkById(filtered[0]);
         state.highlightState = HighlightState.None;
+        state.highlightInput = "";
+        clearAllHighlights();
       }
     }
 
@@ -184,7 +211,8 @@ export default defineContentScript({
         !ctrlKey &&
         !shiftKey &&
         !altKey &&
-        state.highlightState === HighlightState.Highlighted
+        state.highlightState === HighlightState.Highlighted &&
+        key !== "Escape"
       ) {
         updateHighlightInput(key);
         return;
