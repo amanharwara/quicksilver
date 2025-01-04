@@ -71,6 +71,7 @@ export default defineContentScript({
       keyInput: "",
       highlightsContainer: createElement("div", {
         styles: {
+          display: "contents",
           position: "fixed",
           pointerEvents: "none",
           top: "0",
@@ -86,7 +87,10 @@ export default defineContentScript({
     document.body.append(state.highlightsContainer);
 
     const idToHighlightMap = new Map<string, HTMLElement>();
-    const highlightToLinkMap = new Map<HTMLElement, HTMLAnchorElement>();
+    const highlightToLinkMap = new Map<
+      HTMLElement,
+      HTMLAnchorElement | HTMLButtonElement
+    >();
 
     function clearAllHighlights() {
       for (const [id, highlight] of idToHighlightMap) {
@@ -131,7 +135,9 @@ export default defineContentScript({
 
     function highlightLinks() {
       clearAllHighlights();
-      const links = document.querySelectorAll("a");
+      const links = document.querySelectorAll<
+        HTMLAnchorElement | HTMLButtonElement
+      >("a,button");
       const linkRects = Array.from(
         links.values().map((linkEl) => linkEl.getBoundingClientRect())
       );
@@ -152,9 +158,9 @@ export default defineContentScript({
             position: "absolute",
             top: "0",
             left: "0",
-            zIndex: "999",
+            zIndex: "69420",
             translate: `${linkRect.x}px ${linkRect.y}px`,
-            background: `hsl(${index % 360}deg 80% 80%)`,
+            background: `hsl(50deg 80% 80%)`,
           },
           text: id,
         });
@@ -305,13 +311,6 @@ export default defineContentScript({
       }
     }
 
-    function resetState() {
-      clearAllHighlights();
-      state.keyInput = "";
-      state.highlightState = HighlightState.None;
-      state.highlightInput = "";
-    }
-
     const actions = Object.freeze({
       d: scrollHalfPageDown,
       e: scrollHalfPageUp,
@@ -333,8 +332,20 @@ export default defineContentScript({
         return;
       }
 
-      if (key === "Escape") {
-        resetState();
+      const element = getCurrentElement();
+      const isInputElement =
+        element instanceof HTMLInputElement ||
+        element instanceof HTMLTextAreaElement ||
+        element?.closest('[contenteditable="true"]');
+      if (key === "Escape" || isInputElement) {
+        if (key === "Escape") {
+          event.preventDefault();
+        }
+
+        clearAllHighlights();
+        state.keyInput = "";
+        state.highlightState = HighlightState.None;
+        state.highlightInput = "";
         return;
       }
 
