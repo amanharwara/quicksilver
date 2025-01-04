@@ -62,13 +62,13 @@ export default defineContentScript({
 
     const state: {
       activeElement: HTMLElement | null;
-      lastKeyEvent: KeyboardEvent | null;
+      keyInput: string;
       highlightsContainer: HTMLElement;
       highlightState: HighlightState;
       highlightInput: string;
     } = {
       activeElement: null,
-      lastKeyEvent: null,
+      keyInput: "",
       highlightsContainer: createElement("div", {
         styles: {
           position: "fixed",
@@ -152,6 +152,7 @@ export default defineContentScript({
             position: "absolute",
             top: "0",
             left: "0",
+            zIndex: "999",
             translate: `${linkRect.x}px ${linkRect.y}px`,
             background: `hsl(${index % 360}deg 80% 80%)`,
           },
@@ -217,14 +218,126 @@ export default defineContentScript({
       }
     });
 
-    document.documentElement.addEventListener("keydown", (event) => {
-      let lastKeyEvent = state.lastKeyEvent;
-      state.lastKeyEvent = event;
+    function getElementToScroll(element: HTMLElement) {
+      let elementToScroll: HTMLElement | null = null;
+      elementToScroll = isElementOverflowing(element)
+        ? element
+        : findOverflowingParent(element);
+      if (!elementToScroll) {
+        elementToScroll = document.documentElement;
+      }
+      return elementToScroll;
+    }
+
+    function getCurrentElement() {
       const element = state.activeElement || document.activeElement;
       if (!(element instanceof HTMLElement)) {
+        return null;
+      }
+      return element;
+    }
+
+    function scrollUp() {
+      const element = getCurrentElement();
+      if (!element) {
         return;
       }
+      const elementToScroll = getElementToScroll(element);
+      elementToScroll.scrollBy({
+        top: -70,
+      });
+    }
+
+    function scrollHalfPageUp() {
+      const element = getCurrentElement();
+      if (!element) {
+        return;
+      }
+      const elementToScroll = getElementToScroll(element);
+      elementToScroll.scrollBy({
+        top: -(window.innerHeight / 2),
+      });
+    }
+
+    function scrollDown() {
+      const element = getCurrentElement();
+      if (!element) {
+        return;
+      }
+      const elementToScroll = getElementToScroll(element);
+      elementToScroll.scrollBy({
+        top: 70,
+      });
+    }
+
+    function scrollHalfPageDown() {
+      const element = getCurrentElement();
+      if (!element) {
+        return;
+      }
+      const elementToScroll = getElementToScroll(element);
+      elementToScroll.scrollBy({
+        top: window.innerHeight / 2,
+      });
+    }
+
+    function scrollToTop() {
+      const element = getCurrentElement();
+      if (!element) {
+        return;
+      }
+      const elementToScroll = getElementToScroll(element);
+      elementToScroll.scrollTop = 0;
+    }
+
+    function scrollToBottom() {
+      const element = getCurrentElement();
+      if (!element) {
+        return;
+      }
+      const elementToScroll = getElementToScroll(element);
+      elementToScroll.scrollTop = elementToScroll.scrollHeight;
+    }
+
+    function highlightLinksAndButtons() {
+      if (state.highlightState === HighlightState.None) {
+        highlightLinks();
+      }
+    }
+
+    function resetState() {
+      clearAllHighlights();
+      state.keyInput = "";
+      state.highlightState = HighlightState.None;
+      state.highlightInput = "";
+    }
+
+    const actions = Object.freeze({
+      d: scrollHalfPageDown,
+      e: scrollHalfPageUp,
+      j: scrollDown,
+      k: scrollUp,
+      "g g": scrollToTop,
+      f: highlightLinksAndButtons,
+      "S-g": scrollToBottom,
+    });
+
+    type ActionKey = keyof typeof actions;
+
+    const actionKeys = Object.keys(actions);
+
+    document.documentElement.addEventListener("keydown", (event) => {
       const { key, ctrlKey, shiftKey, altKey } = event;
+
+      if (key === "Control" || key === "Shift" || key === "Alt") {
+        return;
+      }
+
+      if (key === "Escape") {
+        resetState();
+        return;
+      }
+
       if (
         !ctrlKey &&
         !shiftKey &&
@@ -235,66 +348,24 @@ export default defineContentScript({
         updateHighlightInput(key);
         return;
       }
-      const isScrollHalfPageDown = !ctrlKey && key === "d";
-      const isScrollHalfPageUp = !ctrlKey && key === "e";
-      const isDoubleG = lastKeyEvent
-        ? key === "g" &&
-          !(shiftKey || ctrlKey) &&
-          lastKeyEvent.key === "g" &&
-          !(lastKeyEvent.shiftKey || lastKeyEvent.ctrlKey) &&
-          lastKeyEvent.timeStamp - event.timeStamp < 100
-        : false;
-      const isShiftG = shiftKey && key === "G";
-      let elementToScroll: HTMLElement | null = null;
-      if (
-        element instanceof HTMLInputElement ||
-        element instanceof HTMLTextAreaElement
-      ) {
-        log("activeElement is input/textarea");
-        return;
+
+      if (state.keyInput.length > 0) {
+        state.keyInput += " ";
       }
-      if (element) {
-        elementToScroll = isElementOverflowing(element)
-          ? element
-          : findOverflowingParent(element);
-      }
-      if (!elementToScroll) {
-        elementToScroll = document.documentElement;
-      }
-      if (isScrollHalfPageDown) {
+
+      state.keyInput += `${ctrlKey ? "C-" : ""}${shiftKey ? "S-" : ""}${
+        altKey ? "A-" : ""
+      }${key.toLowerCase()}`;
+
+      const keyInput = state.keyInput;
+      const filtered = actionKeys.filter((key) => key.startsWith(keyInput));
+      const firstResult = filtered[0];
+      if (filtered.length === 1 && firstResult === keyInput) {
         event.preventDefault();
-        elementToScroll.scrollBy({
-          top: window.innerHeight / 2,
-        });
-      } else if (key === "j") {
-        event.preventDefault();
-        elementToScroll.scrollBy({
-          top: 70,
-        });
-      } else if (isScrollHalfPageUp) {
-        event.preventDefault();
-        elementToScroll.scrollBy({
-          top: -(window.innerHeight / 2),
-        });
-      } else if (key === "k") {
-        event.preventDefault();
-        elementToScroll.scrollBy({
-          top: -70,
-        });
-      } else if (isDoubleG) {
-        event.preventDefault();
-        elementToScroll.scrollTop = 0;
-      } else if (isShiftG) {
-        event.preventDefault();
-        elementToScroll.scrollTop = elementToScroll.scrollHeight;
-      } else if (key === "f" && !ctrlKey && !shiftKey) {
-        if (state.highlightState === HighlightState.None) {
-          highlightLinks();
-        }
-      } else if (key === "Escape") {
-        clearAllHighlights();
-        state.highlightState = HighlightState.None;
-        state.highlightInput = "";
+        actions[firstResult as ActionKey]();
+        state.keyInput = "";
+      } else if (filtered.length === 0) {
+        state.keyInput = "";
       }
     });
   },
