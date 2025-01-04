@@ -46,6 +46,12 @@ enum HighlightState {
   Highlighted = 1,
 }
 
+enum HighlightInteractionMode {
+  Click = 0,
+  Focus = 1,
+  OpenInNewTab = 2,
+}
+
 export default defineContentScript({
   matches: ["<all_urls>"],
   allFrames: true,
@@ -66,6 +72,7 @@ export default defineContentScript({
       highlightsContainer: HTMLElement;
       highlightState: HighlightState;
       highlightInput: string;
+      highlightInteractionMode: HighlightInteractionMode;
     } = {
       activeElement: null,
       keyInput: "",
@@ -82,21 +89,23 @@ export default defineContentScript({
       }),
       highlightState: HighlightState.None,
       highlightInput: "",
+      highlightInteractionMode: HighlightInteractionMode.Click,
     };
 
     document.body.append(state.highlightsContainer);
 
     const idToHighlightMap = new Map<string, HTMLElement>();
-    const highlightToLinkMap = new Map<
-      HTMLElement,
-      HTMLAnchorElement | HTMLButtonElement
-    >();
+    const highlightToElementMap = new WeakMap<HTMLElement, HTMLElement>();
+
+    function removeHighlight(id: string, highlight: HTMLElement) {
+      highlight.remove();
+      idToHighlightMap.delete(id);
+      highlightToElementMap.delete(highlight);
+    }
 
     function clearAllHighlights() {
       for (const [id, highlight] of idToHighlightMap) {
-        highlight.remove();
-        idToHighlightMap.delete(id);
-        highlightToLinkMap.delete(highlight);
+        removeHighlight(id, highlight);
       }
     }
 
@@ -133,65 +142,91 @@ export default defineContentScript({
       return ids;
     }
 
-    function highlightLinks() {
+    function addHighlight(
+      id: string,
+      x: number,
+      y: number,
+      element: HTMLElement
+    ) {
+      const highlight = createElement("div", {
+        styles: {
+          position: "absolute",
+          top: "0",
+          left: "0",
+          zIndex: "69420",
+          translate: `${x}px ${y}px`,
+          background: `hsl(50deg 80% 80%)`,
+        },
+        text: id,
+      });
+      state.highlightsContainer.append(highlight);
+      idToHighlightMap.set(id, highlight);
+      highlightToElementMap.set(highlight, element);
+    }
+
+    function highlightElementsBySelector(selector: string) {
       clearAllHighlights();
-      const links = document.querySelectorAll<
-        HTMLAnchorElement | HTMLButtonElement
-      >("a,button");
-      const linkRects = Array.from(
-        links.values().map((linkEl) => linkEl.getBoundingClientRect())
+      const elements = document.querySelectorAll<HTMLElement>(selector);
+      if (!elements) {
+        return;
+      }
+      const elementRects = Array.from(
+        elements.values().map((linkEl) => linkEl.getBoundingClientRect())
       );
-      const linkIDs = generateIDsForLength(links.length);
-      for (let index = 0; index < links.length; index++) {
-        const link = links[index];
-        const linkRect = linkRects[index];
-        const overflowParent = findOverflowingParent(link);
+      const highlightIDs = generateIDsForLength(elements.length);
+      let createdHighlights = 0;
+      for (let index = 0; index < elements.length; index++) {
+        const element = elements[index];
+        const elementRect = elementRects[index];
+        const overflowParent = findOverflowingParent(element);
         if (overflowParent) {
           const parentRect = overflowParent.getBoundingClientRect();
-          if (linkRect.bottom < parentRect.top) {
+          if (elementRect.bottom < parentRect.top) {
             continue;
           }
         }
-        const id = linkIDs[index];
-        const highlight = createElement("div", {
-          styles: {
-            position: "absolute",
-            top: "0",
-            left: "0",
-            zIndex: "69420",
-            translate: `${linkRect.x}px ${linkRect.y}px`,
-            background: `hsl(50deg 80% 80%)`,
-          },
-          text: id,
-        });
-        state.highlightsContainer.append(highlight);
-        idToHighlightMap.set(id, highlight);
-        highlightToLinkMap.set(highlight, link);
+        const id = highlightIDs[index];
+        addHighlight(id, elementRect.x, elementRect.y, element);
+        createdHighlights++;
+      }
+      if (createdHighlights === 0) {
+        return;
       }
       state.highlightState = HighlightState.Highlighted;
     }
 
-    function openLinkById(id: string) {
+    function handleHighlightInteraction(id: string) {
       const highlight = idToHighlightMap.get(id);
       if (!highlight) {
         return;
       }
-      const link = highlightToLinkMap.get(highlight);
-      if (link) {
-        link.click();
+      const element = highlightToElementMap.get(highlight);
+      if (element) {
+        switch (state.highlightInteractionMode) {
+          case HighlightInteractionMode.Click:
+            element.click();
+            break;
+          case HighlightInteractionMode.Focus:
+            element.focus();
+            break;
+          case HighlightInteractionMode.OpenInNewTab: {
+            if (!(element instanceof HTMLAnchorElement)) {
+              return;
+            }
+            break;
+          }
+        }
       }
     }
 
-    function updateHighlightInput(key: string) {
+    function updateHighlightInput(key: string, event: KeyboardEvent) {
       state.highlightInput += key;
       const ids = Array.from(idToHighlightMap.keys());
       const highlightInput = state.highlightInput;
       const filtered = ids.filter((id) => id.startsWith(highlightInput));
       for (const [id, highlight] of idToHighlightMap) {
         if (!filtered.includes(id)) {
-          highlight.remove();
-          idToHighlightMap.delete(id);
-          highlightToLinkMap.delete(highlight);
+          removeHighlight(id, highlight);
         } else {
           const text = highlight.innerText;
           const s1 = text.slice(0, highlightInput.length);
@@ -201,7 +236,9 @@ export default defineContentScript({
       }
       const firstResult = filtered[0];
       if (filtered.length === 1 && firstResult === highlightInput) {
-        openLinkById(firstResult);
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        handleHighlightInteraction(firstResult);
         state.highlightState = HighlightState.None;
         state.highlightInput = "";
         clearAllHighlights();
@@ -307,21 +344,37 @@ export default defineContentScript({
 
     function highlightLinksAndButtons() {
       if (state.highlightState === HighlightState.None) {
-        highlightLinks();
+        state.highlightInteractionMode = HighlightInteractionMode.Click;
+        highlightElementsBySelector("a,button");
       }
     }
 
-    const actions = Object.freeze({
-      d: scrollHalfPageDown,
-      e: scrollHalfPageUp,
-      j: scrollDown,
-      k: scrollUp,
-      "g g": scrollToTop,
-      f: highlightLinksAndButtons,
-      "S-g": scrollToBottom,
-    });
+    function highlightLinksToOpenInNewTab() {
+      if (state.highlightState === HighlightState.None) {
+        state.highlightInteractionMode = HighlightInteractionMode.OpenInNewTab;
+        highlightElementsBySelector("a");
+      }
+    }
 
-    type ActionKey = keyof typeof actions;
+    function highlightAllInputs() {
+      if (state.highlightState === HighlightState.None) {
+        state.highlightInteractionMode = HighlightInteractionMode.Focus;
+        highlightElementsBySelector("input,textarea,[contenteditable]");
+      }
+    }
+
+    const actions: Readonly<Record<string, (event: KeyboardEvent) => void>> =
+      Object.freeze({
+        d: scrollHalfPageDown,
+        e: scrollHalfPageUp,
+        j: scrollDown,
+        k: scrollUp,
+        "g g": scrollToTop,
+        i: highlightAllInputs,
+        f: highlightLinksAndButtons,
+        "g f": highlightLinksToOpenInNewTab,
+        "S-g": scrollToBottom,
+      });
 
     const actionKeys = Object.keys(actions);
 
@@ -356,7 +409,7 @@ export default defineContentScript({
         state.highlightState === HighlightState.Highlighted &&
         key !== "Escape"
       ) {
-        updateHighlightInput(key);
+        updateHighlightInput(key, event);
         return;
       }
 
@@ -373,7 +426,7 @@ export default defineContentScript({
       const firstResult = filtered[0];
       if (filtered.length === 1 && firstResult === keyInput) {
         event.preventDefault();
-        actions[firstResult as ActionKey]();
+        actions[firstResult](event);
         state.keyInput = "";
       } else if (filtered.length === 0) {
         state.keyInput = "";
