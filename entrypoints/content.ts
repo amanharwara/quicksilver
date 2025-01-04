@@ -84,6 +84,7 @@ export default defineContentScript({
           left: "0",
           width: "100%",
           height: "100%",
+          zIndex: "69420",
         },
       }),
       highlightState: HighlightState.None,
@@ -111,13 +112,12 @@ export default defineContentScript({
       }
     }
 
-    function generateIDsForLength(length: number) {
-      const ids: string[] = [];
+    function* highlightIDGenerator() {
       let leaderKeys: string[] = [
         letters[Math.floor(Math.random() * 10) % letters.length],
       ];
       let lettersWithoutLeader = letters.filter((l) => !leaderKeys.includes(l));
-      for (let i = 0; i < length; i++) {
+      while (true) {
         let id = "";
         const letter = lettersWithoutLeader.shift();
         let leaderKey = leaderKeys.slice(0, leaderKeys.length - 1);
@@ -139,9 +139,8 @@ export default defineContentScript({
           leaderKeys.push(newLeaderKey);
           lettersWithoutLeader = letters.filter((l) => !leaderKeys.includes(l));
         }
-        ids.push(id);
+        yield id;
       }
-      return ids;
     }
 
     function highlightElementsBySelector(selector: string) {
@@ -153,19 +152,20 @@ export default defineContentScript({
       const elementRects = Array.from(
         elements.values().map((linkEl) => linkEl.getBoundingClientRect())
       );
-      const highlightIDs = generateIDsForLength(elements.length);
+      const highlightIDs = highlightIDGenerator();
       let createdHighlights = 0;
       for (let index = 0; index < elements.length; index++) {
         const element = elements[index];
         const elementRect = elementRects[index];
-        const overflowParent = findOverflowingParent(element);
-        if (overflowParent) {
-          const parentRect = overflowParent.getBoundingClientRect();
-          if (elementRect.bottom < parentRect.top) {
-            continue;
-          }
+        const isVisible =
+          elementRect.top >= 0 &&
+          elementRect.bottom <= window.innerHeight &&
+          elementRect.width > 0 &&
+          elementRect.height > 0;
+        if (!isVisible) {
+          continue;
         }
-        const id = highlightIDs[index];
+        const id = highlightIDs.next().value;
         const highlight = createElement("div", {
           styles: {
             position: "absolute",
@@ -177,10 +177,10 @@ export default defineContentScript({
             color: "black",
             padding: "1px 4px",
           },
-          text: id,
+          text: id as string,
         });
         state.highlightsContainer.append(highlight);
-        idToHighlightMap.set(id, highlight);
+        idToHighlightMap.set(id as string, highlight);
         highlightToElementMap.set(highlight, element);
         createdHighlights++;
       }
