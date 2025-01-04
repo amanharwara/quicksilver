@@ -142,28 +142,6 @@ export default defineContentScript({
       return ids;
     }
 
-    function addHighlight(
-      id: string,
-      x: number,
-      y: number,
-      element: HTMLElement
-    ) {
-      const highlight = createElement("div", {
-        styles: {
-          position: "absolute",
-          top: "0",
-          left: "0",
-          zIndex: "69420",
-          translate: `${x}px ${y}px`,
-          background: `hsl(50deg 80% 80%)`,
-        },
-        text: id,
-      });
-      state.highlightsContainer.append(highlight);
-      idToHighlightMap.set(id, highlight);
-      highlightToElementMap.set(highlight, element);
-    }
-
     function highlightElementsBySelector(selector: string) {
       clearAllHighlights();
       const elements = document.querySelectorAll<HTMLElement>(selector);
@@ -186,7 +164,22 @@ export default defineContentScript({
           }
         }
         const id = highlightIDs[index];
-        addHighlight(id, elementRect.x, elementRect.y, element);
+        const highlight = createElement("div", {
+          styles: {
+            position: "absolute",
+            top: "0",
+            left: "0",
+            zIndex: "69420",
+            translate: `${elementRect.x}px ${elementRect.y}px`,
+            background: `hsl(50deg 80% 80%)`,
+            color: "black",
+            padding: "1px 4px",
+          },
+          text: id,
+        });
+        state.highlightsContainer.append(highlight);
+        idToHighlightMap.set(id, highlight);
+        highlightToElementMap.set(highlight, element);
         createdHighlights++;
       }
       if (createdHighlights === 0) {
@@ -213,6 +206,8 @@ export default defineContentScript({
             if (!(element instanceof HTMLAnchorElement)) {
               return;
             }
+            const href = element.href;
+            window.open(href, "_blank");
             break;
           }
         }
