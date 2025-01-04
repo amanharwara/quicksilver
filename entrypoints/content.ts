@@ -78,7 +78,6 @@ export default defineContentScript({
       keyInput: "",
       highlightsContainer: createElement("div", {
         styles: {
-          display: "contents",
           position: "fixed",
           pointerEvents: "none",
           top: "0",
@@ -106,6 +105,9 @@ export default defineContentScript({
     function clearAllHighlights() {
       for (const [id, highlight] of idToHighlightMap) {
         removeHighlight(id, highlight);
+      }
+      for (const child of Array.from(state.highlightsContainer.children)) {
+        child.remove();
       }
     }
 
