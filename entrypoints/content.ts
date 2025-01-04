@@ -171,16 +171,26 @@ export default defineContentScript({
     function updateHighlightInput(key: string) {
       state.highlightInput += key;
       const ids = Array.from(idToHighlightMap.keys());
-      const filtered = ids.filter((id) => id.startsWith(state.highlightInput));
+      const highlightInput = state.highlightInput;
+      const filtered = ids.filter((id) => id.startsWith(highlightInput));
       for (const [id, highlight] of idToHighlightMap) {
         if (!filtered.includes(id)) {
           highlight.remove();
           idToHighlightMap.delete(id);
           highlightToLinkMap.delete(highlight);
+        } else {
+          const text = highlight.innerText;
+          const s1 = text.slice(0, highlightInput.length);
+          const s2 = text.slice(highlightInput.length);
+          highlight.innerHTML = `<span style="opacity:0.5">${s1}</span>${s2}`;
         }
       }
       if (filtered.length === 1) {
         openLinkById(filtered[0]);
+        state.highlightState = HighlightState.None;
+        state.highlightInput = "";
+        clearAllHighlights();
+      } else if (filtered.length === 0) {
         state.highlightState = HighlightState.None;
         state.highlightInput = "";
         clearAllHighlights();
@@ -276,6 +286,7 @@ export default defineContentScript({
       } else if (key === "Escape") {
         clearAllHighlights();
         state.highlightState = HighlightState.None;
+        state.highlightInput = "";
       }
     });
   },
