@@ -153,12 +153,18 @@ export default defineContentScript({
         elements.values().map((linkEl) => linkEl.getBoundingClientRect())
       );
       const highlightIDs = highlightIDGenerator();
+      const windowHeight = window.innerHeight;
       let createdHighlights = 0;
       for (let index = 0; index < elements.length; index++) {
         const element = elements[index];
         const elementRect = elementRects[index];
+        const isInViewport =
+          elementRect.top >= 0 &&
+          elementRect.bottom <= windowHeight &&
+          elementRect.width > 0 &&
+          elementRect.height > 0;
         const isVisible = element.checkVisibility();
-        if (!isVisible) {
+        if (!isInViewport || !isVisible) {
           continue;
         }
         const id = highlightIDs.next().value;
