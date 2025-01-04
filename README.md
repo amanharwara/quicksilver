@@ -1,3 +1,3 @@
-# WXT + SolidJS
+### quicksilver
 
-This template should help get you started developing with SolidJS in WXT.
+browser extension for better movement using the keyboard.
