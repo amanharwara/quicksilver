@@ -157,11 +157,7 @@ export default defineContentScript({
       for (let index = 0; index < elements.length; index++) {
         const element = elements[index];
         const elementRect = elementRects[index];
-        const isVisible =
-          elementRect.top >= 0 &&
-          elementRect.bottom <= window.innerHeight &&
-          elementRect.width > 0 &&
-          elementRect.height > 0;
+        const isVisible = element.checkVisibility();
         if (!isVisible) {
           continue;
         }
@@ -375,7 +371,7 @@ export default defineContentScript({
 
     const actionKeys = Object.keys(actions);
 
-    document.documentElement.addEventListener("keydown", (event) => {
+    window.addEventListener("keydown", (event) => {
       const { key, ctrlKey, shiftKey, altKey } = event;
 
       if (key === "Control" || key === "Shift" || key === "Alt") {
@@ -418,6 +414,9 @@ export default defineContentScript({
         altKey ? "A-" : ""
       }${key.toLowerCase()}`;
 
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+
       const keyInput = state.keyInput;
       const filtered = actionKeys.filter((key) => key.startsWith(keyInput));
       const firstResult = filtered[0];
@@ -428,6 +427,11 @@ export default defineContentScript({
       } else if (filtered.length === 0) {
         state.keyInput = "";
       }
+    });
+
+    window.addEventListener("keyup", (event) => {
+      event.stopImmediatePropagation();
+      event.stopPropagation();
     });
   },
 });
