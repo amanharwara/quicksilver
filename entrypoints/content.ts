@@ -185,8 +185,9 @@ export default defineContentScript({
           highlight.innerHTML = `<span style="opacity:0.5">${s1}</span>${s2}`;
         }
       }
-      if (filtered.length === 1) {
-        openLinkById(filtered[0]);
+      const firstResult = filtered[0];
+      if (filtered.length === 1 && firstResult === highlightInput) {
+        openLinkById(firstResult);
         state.highlightState = HighlightState.None;
         state.highlightInput = "";
         clearAllHighlights();
