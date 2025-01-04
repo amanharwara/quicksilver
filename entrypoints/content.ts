@@ -139,6 +139,13 @@ export default defineContentScript({
       for (let index = 0; index < links.length; index++) {
         const link = links[index];
         const linkRect = linkRects[index];
+        const overflowParent = findOverflowingParent(link);
+        if (overflowParent) {
+          const parentRect = overflowParent.getBoundingClientRect();
+          if (linkRect.bottom < parentRect.top) {
+            continue;
+          }
+        }
         const id = linkIDs[index];
         const highlight = createElement("div", {
           styles: {
