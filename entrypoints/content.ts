@@ -56,7 +56,7 @@ export default defineContentScript({
   matches: ["<all_urls>"],
   allFrames: true,
   matchOriginAsFallback: true,
-  main() {
+  main(ctx) {
     log("Loaded content script");
 
     const letters = Array(26)
@@ -163,7 +163,9 @@ export default defineContentScript({
           elementRect.bottom <= windowHeight &&
           elementRect.width > 0 &&
           elementRect.height > 0;
-        const isVisible = element.checkVisibility();
+        const isVisible = element.checkVisibility({
+          checkOpacity: true,
+        });
         if (!isInViewport || !isVisible) {
           continue;
         }
@@ -377,7 +379,7 @@ export default defineContentScript({
 
     const actionKeys = Object.keys(actions);
 
-    window.addEventListener("keydown", (event) => {
+    ctx.addEventListener(window, "keydown", (event) => {
       const { key, ctrlKey, shiftKey, altKey } = event;
 
       if (key === "Control" || key === "Shift" || key === "Alt") {
@@ -435,7 +437,12 @@ export default defineContentScript({
       }
     });
 
-    window.addEventListener("keyup", (event) => {
+    ctx.addEventListener(window, "keypress", (event) => {
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+    });
+
+    ctx.addEventListener(window, "keyup", (event) => {
       event.stopImmediatePropagation();
       event.stopPropagation();
     });
