@@ -160,7 +160,7 @@ export default defineContentScript({
             background: `hsl(50deg 80% 80%)`,
             color: "black",
             padding: "1px 2px",
-            fontSize: "0.85rem",
+            fontSize: "14px",
           },
           text: id as string,
         });
