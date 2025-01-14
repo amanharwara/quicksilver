@@ -42,7 +42,7 @@ function createElement(
     };
     children?: HTMLElement[];
     text?: string;
-  } = {}
+  } = {},
 ) {
   const element = document.createElement(tag);
   const { styles, children, text } = options;
@@ -130,7 +130,7 @@ export default defineContentScript({
         return;
       }
       const elementRects = Array.from(
-        elements.values().map((linkEl) => linkEl.getBoundingClientRect())
+        elements.values().map((linkEl) => linkEl.getBoundingClientRect()),
       );
       const highlightIDs = twoCharIDGenerator();
       const windowHeight = window.innerHeight;
@@ -160,7 +160,7 @@ export default defineContentScript({
             background: `hsl(50deg 80% 80%)`,
             color: "black",
             padding: "1px 2px",
-            fontSize: "14px",
+            fontSize: "16px",
           },
           text: id as string,
         });
