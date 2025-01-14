@@ -1,3 +1,21 @@
+const letters = Array(26)
+  .fill(0)
+  .map((_, index) => {
+    let i = index + 97;
+    return String.fromCharCode(i);
+  });
+
+export function* twoCharIDGenerator() {
+  for (const letter of letters) {
+    const lettersWithoutCurrent = letters.filter((l) => l !== letter);
+    let index = 0;
+    while (lettersWithoutCurrent.length > 0) {
+      const l2 = lettersWithoutCurrent.shift() || index++;
+      yield `${letter}${l2}`;
+    }
+  }
+}
+
 function log(...args: any[]) {
   console.group("quicksilver");
   console.log(...args);
@@ -59,13 +77,6 @@ export default defineContentScript({
   main(ctx) {
     log("Loaded content script");
 
-    const letters = Array(26)
-      .fill(0)
-      .map((_, index) => {
-        let i = index + 97;
-        return String.fromCharCode(i);
-      });
-
     const state: {
       activeElement: HTMLElement | null;
       keyInput: string;
@@ -112,37 +123,6 @@ export default defineContentScript({
       }
     }
 
-    function* highlightIDGenerator() {
-      let leaderKeys: string[] = [
-        letters[Math.floor(Math.random() * 10) % letters.length],
-      ];
-      let lettersWithoutLeader = letters.filter((l) => !leaderKeys.includes(l));
-      while (true) {
-        let id = "";
-        const letter = lettersWithoutLeader.shift();
-        let leaderKey = leaderKeys.slice(0, leaderKeys.length - 1);
-        if (leaderKeys.length - 1 !== 0) {
-          id += leaderKey.join("");
-        }
-        if (letter) {
-          id += letter;
-        }
-        if (lettersWithoutLeader.length === 0) {
-          const lettersWithoutLatestLeaderKey = letters.filter(
-            (l) => !leaderKeys.includes(l)
-          );
-          const newLeaderKey =
-            lettersWithoutLatestLeaderKey[
-              Math.floor(Math.random() * 10) %
-                lettersWithoutLatestLeaderKey.length
-            ];
-          leaderKeys.push(newLeaderKey);
-          lettersWithoutLeader = letters.filter((l) => !leaderKeys.includes(l));
-        }
-        yield id;
-      }
-    }
-
     function highlightElementsBySelector(selector: string) {
       clearAllHighlights();
       const elements = document.querySelectorAll<HTMLElement>(selector);
@@ -152,7 +132,7 @@ export default defineContentScript({
       const elementRects = Array.from(
         elements.values().map((linkEl) => linkEl.getBoundingClientRect())
       );
-      const highlightIDs = highlightIDGenerator();
+      const highlightIDs = twoCharIDGenerator();
       const windowHeight = window.innerHeight;
       let createdHighlights = 0;
       for (let index = 0; index < elements.length; index++) {
@@ -179,7 +159,8 @@ export default defineContentScript({
             translate: `${elementRect.x}px ${elementRect.y}px`,
             background: `hsl(50deg 80% 80%)`,
             color: "black",
-            padding: "1px 4px",
+            padding: "1px 2px",
+            fontSize: "0.85rem",
           },
           text: id as string,
         });
