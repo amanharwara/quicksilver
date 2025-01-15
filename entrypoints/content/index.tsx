@@ -67,7 +67,7 @@ enum HighlightState {
   Highlighted = 1,
 }
 
-enum HighlightInteractionMode {
+enum ElementInteractionMode {
   Click = 0,
   Focus = 1,
   OpenInNewTab = 2,
@@ -77,6 +77,12 @@ type Actions = Record<
   string,
   { desc: string; fn: (event: KeyboardEvent) => void }
 >;
+
+const mainContext = createContext<{
+  hideAllPopups: () => void;
+  resetState: (hidePopups: boolean) => void;
+  interact: (element: HTMLElement, mode: ElementInteractionMode) => void;
+}>();
 
 function ActionsHelp(props: {
   keyInput: string;
@@ -99,24 +105,293 @@ function ActionsHelp(props: {
         "font-size": "16px",
         "font-family": "sans-serif",
         width: "50vw",
+        "max-height": "50vh",
       }}
     >
       <For each={props.actionKeys}>
-        {(key) => (
-          <Show
-            when={props.keyInput.length === 0 || key.startsWith(props.keyInput)}
-          >
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-              <div
-                style={`font-family: "SF Mono", monospace; background: #fff; color: #000; padding: 0.25rem;`}
-              >
-                {key.replace(/\s/g, "")}
+        {(key) => {
+          const keyInputLength = () => props.keyInput.length;
+          const noKeyInput = () => keyInputLength() === 0;
+          const startsWithKeyInput = () => key.startsWith(props.keyInput);
+          return (
+            <Show when={noKeyInput() || startsWithKeyInput()}>
+              <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div
+                  style={`font-family: "SF Mono", monospace; background: #fff; color: #000; padding: 0.25rem;`}
+                >
+                  <Show
+                    when={startsWithKeyInput}
+                    fallback={key.replace(/\s/g, "")}
+                  >
+                    <span style="opacity: 0.5">
+                      {key.slice(0, keyInputLength()).replace(/\s/g, "")}
+                    </span>
+                    <span>
+                      {key.slice(keyInputLength()).replace(/\s/g, "")}
+                    </span>
+                  </Show>
+                </div>
+                {props.actions[key].desc}
               </div>
-              {props.actions[key].desc}
+            </Show>
+          );
+        }}
+      </For>
+    </div>
+  );
+}
+
+type ClickableItem = {
+  text: string;
+  element: HTMLElement;
+  href?: string;
+};
+
+function ClickableItemComp(props: {
+  item: ClickableItem;
+  index: number;
+  selectedIndex: number;
+}) {
+  const [isHovered, setIsHovered] = createSignal(false);
+  const context = useContext(mainContext);
+  return (
+    <div
+      style={{
+        display: "flex",
+        "flex-direction": "column",
+        gap: "0.35rem",
+        padding: "1rem 1.25rem",
+        background:
+          props.index === props.selectedIndex || isHovered()
+            ? "color-mix(in oklab, black, white 20%)"
+            : "",
+        "user-select": "none",
+        position: "relative",
+      }}
+      onClick={(event) => {
+        const element = props.item.element;
+        if (event.ctrlKey) {
+          context?.interact(element, ElementInteractionMode.OpenInNewTab);
+        } else {
+          context?.interact(element, ElementInteractionMode.Click);
+        }
+        context?.resetState(true);
+      }}
+      onMouseOver={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <div
+        style={{
+          "font-weight": "bold",
+          "font-size": "15px",
+        }}
+      >
+        {props.item.text}
+      </div>
+      <div
+        style={{
+          "font-size": "13px",
+        }}
+      >
+        <Show when={props.item.href} fallback={"<button>"}>
+          {props.item.href}
+        </Show>
+      </div>
+      <Show when={props.index === props.selectedIndex || isHovered()}>
+        <div
+          style={{
+            display: "flex",
+            "flex-direction": "column",
+            "align-items": "end",
+            gap: "0.25rem",
+            position: "absolute",
+            right: "1rem",
+            top: "50%",
+            translate: "0 -50%",
+            "font-size": "small",
+          }}
+        >
+          <div style={{ display: "flex", "align-items": "center" }}>
+            <kbd
+              style={{
+                background: "#fff",
+                color: "#000",
+              }}
+            >
+              Enter
+            </kbd>{" "}
+            <span style={{ "margin-left": "4px" }}>
+              {props.item.href ? "open" : "click"}
+            </span>
+          </div>
+          <Show when={props.item.href}>
+            <div style={{ display: "flex", "align-items": "center" }}>
+              <kbd
+                style={{
+                  background: "#fff",
+                  color: "#000",
+                }}
+              >
+                Ctrl
+              </kbd>
+              <span style={{ margin: "2px" }}>+</span>
+              <kbd
+                style={{
+                  background: "#fff",
+                  color: "#000",
+                }}
+              >
+                Enter
+              </kbd>
+              <span style={{ "margin-left": "4px" }}>new tab</span>
             </div>
           </Show>
-        )}
-      </For>
+        </div>
+      </Show>
+    </div>
+  );
+}
+
+function LinkAndButtonList() {
+  let container: HTMLDivElement | undefined;
+  let input: HTMLInputElement | undefined;
+
+  const context = useContext(mainContext);
+
+  const items: ClickableItem[] = [];
+  for (const element of document.querySelectorAll("a,button")) {
+    if (!(element instanceof HTMLElement)) {
+      continue;
+    }
+    const text = element.textContent;
+    if (!text) continue;
+    let href: string | undefined;
+    if (element instanceof HTMLAnchorElement) {
+      href = element.href;
+    }
+    const item: ClickableItem = { text, element, href };
+    items.push(item);
+  }
+
+  const [selectedIndex, setSelectedIndex] = createSignal(0);
+  const [query, setQuery] = createSignal("");
+
+  createEffect(() => {
+    const _ = query();
+    setSelectedIndex(0);
+  });
+
+  const filtered = createMemo(() => {
+    const q = query();
+    if (q.length === 0) return items;
+    return items.filter((a) => a.text.toLowerCase().includes(q.toLowerCase()));
+  });
+
+  const clickListener = (event: MouseEvent) => {
+    if (!container || !(event.target instanceof Element)) {
+      return;
+    }
+    if (container.contains(event.target)) {
+      return;
+    }
+    context?.hideAllPopups();
+  };
+
+  onMount(() => {
+    if (input) {
+      input.focus();
+    }
+
+    document.addEventListener("click", clickListener);
+  });
+
+  onCleanup(() => {
+    document.removeEventListener("click", clickListener);
+  });
+
+  return (
+    <div
+      ref={container}
+      style={{
+        display: "flex",
+        "flex-direction": "column",
+        position: "fixed",
+        bottom: "1rem",
+        left: "50%",
+        translate: "-50% 0",
+        background: "#000",
+        color: "#fff",
+        "font-size": "16px",
+        "font-family": "sans-serif",
+        width: "65vw",
+        "max-height": "50vh",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          "flex-direction": "column",
+          "overflow-y": "auto",
+          padding: "0.5rem 0",
+        }}
+      >
+        <For each={filtered()}>
+          {(item, index) => (
+            <ClickableItemComp
+              item={item}
+              index={index()}
+              selectedIndex={selectedIndex()}
+            />
+          )}
+        </For>
+      </div>
+      <input
+        ref={input}
+        style={{
+          background: "inherit",
+          color: "inherit",
+          padding: "0.5rem 1rem",
+          border: "1px solid transparent",
+          "border-radius": "0",
+          // outline: "2px solid cornflowerblue",
+        }}
+        value={query()}
+        onKeyDown={(event) => {
+          const { key } = event;
+          if (key !== "Escape") {
+            event.stopImmediatePropagation();
+          }
+          switch (key) {
+            case "ArrowDown":
+              setSelectedIndex((index) =>
+                Math.min(index + 1, filtered().length)
+              );
+              break;
+            case "ArrowUp":
+              setSelectedIndex((index) => Math.max(index - 1, 0));
+              break;
+            case "Enter": {
+              const item = filtered()[selectedIndex()];
+              if (item) {
+                context?.interact(
+                  item.element,
+                  event.ctrlKey
+                    ? ElementInteractionMode.OpenInNewTab
+                    : ElementInteractionMode.Click
+                );
+              }
+              context?.resetState(true);
+              break;
+            }
+            default:
+              break;
+          }
+        }}
+        onInput={(event) => {
+          event.stopImmediatePropagation();
+          setQuery(event.target.value);
+        }}
+      />
     </div>
   );
 }
@@ -128,7 +403,7 @@ function Root() {
     highlightsContainer: HTMLElement;
     highlightState: HighlightState;
     highlightInput: string;
-    highlightInteractionMode: HighlightInteractionMode;
+    highlightInteractionMode: ElementInteractionMode;
   } = {
     activeElement: null,
     keyInput: "",
@@ -145,7 +420,7 @@ function Root() {
     }),
     highlightState: HighlightState.None,
     highlightInput: "",
-    highlightInteractionMode: HighlightInteractionMode.Click,
+    highlightInteractionMode: ElementInteractionMode.Click,
   };
 
   const [showActionHelp, setShowActionHelp] = createSignal(false);
@@ -154,6 +429,7 @@ function Root() {
 
   function hideAllPopups() {
     setShowActionHelp(false);
+    setShowListAndButtonList(false);
   }
 
   const idToHighlightMap = new Map<string, HTMLElement>();
@@ -226,6 +502,28 @@ function Root() {
     state.highlightState = HighlightState.Highlighted;
   }
 
+  function handleElementInteraction(
+    element: HTMLElement,
+    mode: ElementInteractionMode
+  ) {
+    switch (mode) {
+      case ElementInteractionMode.Click:
+        element.click();
+        break;
+      case ElementInteractionMode.Focus:
+        element.focus();
+        break;
+      case ElementInteractionMode.OpenInNewTab: {
+        if (!(element instanceof HTMLAnchorElement)) {
+          return;
+        }
+        const href = element.href;
+        window.open(href, "_blank");
+        break;
+      }
+    }
+  }
+
   function handleHighlightInteraction(id: string) {
     const highlight = idToHighlightMap.get(id);
     if (!highlight) {
@@ -233,22 +531,7 @@ function Root() {
     }
     const element = highlightToElementMap.get(highlight);
     if (element) {
-      switch (state.highlightInteractionMode) {
-        case HighlightInteractionMode.Click:
-          element.click();
-          break;
-        case HighlightInteractionMode.Focus:
-          element.focus();
-          break;
-        case HighlightInteractionMode.OpenInNewTab: {
-          if (!(element instanceof HTMLAnchorElement)) {
-            return;
-          }
-          const href = element.href;
-          window.open(href, "_blank");
-          break;
-        }
-      }
+      handleElementInteraction(element, state.highlightInteractionMode);
     }
   }
 
@@ -294,7 +577,10 @@ function Root() {
   }
 
   function getCurrentElement() {
-    const element = state.activeElement || document.activeElement;
+    let element = state.activeElement;
+    if (!element || !element.isConnected) {
+      element = document.activeElement as HTMLElement | null;
+    }
     if (!(element instanceof HTMLElement)) {
       return null;
     }
@@ -365,27 +651,23 @@ function Root() {
 
   function highlightLinksAndButtons() {
     if (state.highlightState === HighlightState.None) {
-      state.highlightInteractionMode = HighlightInteractionMode.Click;
+      state.highlightInteractionMode = ElementInteractionMode.Click;
       highlightElementsBySelector("a,button");
     }
   }
 
   function highlightLinksToOpenInNewTab() {
     if (state.highlightState === HighlightState.None) {
-      state.highlightInteractionMode = HighlightInteractionMode.OpenInNewTab;
+      state.highlightInteractionMode = ElementInteractionMode.OpenInNewTab;
       highlightElementsBySelector("a");
     }
   }
 
   function highlightAllInputs() {
     if (state.highlightState === HighlightState.None) {
-      state.highlightInteractionMode = HighlightInteractionMode.Focus;
+      state.highlightInteractionMode = ElementInteractionMode.Focus;
       highlightElementsBySelector("input,textarea,[contenteditable]");
     }
-  }
-
-  function toggleActionHelp() {
-    setShowActionHelp((show) => !show);
   }
 
   const actions: Actions = {
@@ -396,12 +678,16 @@ function Root() {
     "g g": { desc: "Scroll to top", fn: scrollToTop },
     "S-g": { desc: "Scroll to bottom", fn: scrollToBottom },
     i: { desc: "Highlight inputs", fn: highlightAllInputs },
+    "l f": {
+      desc: "List links & buttons",
+      fn: () => setShowListAndButtonList((show) => !show),
+    },
     f: { desc: "Highlight links & buttons", fn: highlightLinksAndButtons },
     "g f": {
       desc: "Highlight links to open in new tab",
       fn: highlightLinksToOpenInNewTab,
     },
-    "S-?": { desc: "Show help", fn: toggleActionHelp },
+    "S-?": { desc: "Show help", fn: () => setShowActionHelp((show) => !show) },
   };
 
   const actionKeys = Object.keys(actions);
@@ -420,14 +706,22 @@ function Root() {
 
   const [keyInput, setKeyInput] = createSignal("");
 
+  function resetState(hidePopups: boolean) {
+    if (hidePopups) {
+      hideAllPopups();
+    }
+    clearAllHighlights();
+    setKeyInput("");
+    state.highlightState = HighlightState.None;
+    state.highlightInput = "";
+  }
+
   const keydownListener = (event: KeyboardEvent) => {
     const { key, ctrlKey, shiftKey, altKey } = event;
 
     if (key === "Control" || key === "Shift" || key === "Alt") {
       return;
     }
-
-    hideAllPopups();
 
     const element = getCurrentElement();
     const isInputElement =
@@ -437,12 +731,10 @@ function Root() {
     if (key === "Escape" || isInputElement) {
       if (key === "Escape") {
         event.preventDefault();
+        resetState(true);
       }
 
-      clearAllHighlights();
-      setKeyInput("");
-      state.highlightState = HighlightState.None;
-      state.highlightInput = "";
+      resetState(false);
       return;
     }
 
@@ -501,7 +793,13 @@ function Root() {
   });
 
   return (
-    <>
+    <mainContext.Provider
+      value={{
+        hideAllPopups,
+        resetState,
+        interact: handleElementInteraction,
+      }}
+    >
       <Show when={keyInput().length > 0 || showActionHelp()}>
         <ActionsHelp
           keyInput={keyInput()}
@@ -509,7 +807,10 @@ function Root() {
           actionKeys={actionKeys}
         />
       </Show>
-    </>
+      <Show when={showLinkAndButtonList()}>
+        <LinkAndButtonList />
+      </Show>
+    </mainContext.Provider>
   );
 }
 
