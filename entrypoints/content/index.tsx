@@ -78,7 +78,11 @@ type Actions = Record<
   { desc: string; fn: (event: KeyboardEvent) => void }
 >;
 
-function ActionsHelp(props: { actionKeys: string[]; actions: Actions }) {
+function ActionsHelp(props: {
+  keyInput: string;
+  actionKeys: string[];
+  actions: Actions;
+}) {
   return (
     <div
       style={{
@@ -99,14 +103,18 @@ function ActionsHelp(props: { actionKeys: string[]; actions: Actions }) {
     >
       <For each={props.actionKeys}>
         {(key) => (
-          <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <div
-              style={`font-family: "SF Mono", monospace; background: #fff; color: #000; padding: 0.25rem;`}
-            >
-              {key.replace(/\s/g, "")}
+          <Show
+            when={props.keyInput.length === 0 || key.startsWith(props.keyInput)}
+          >
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <div
+                style={`font-family: "SF Mono", monospace; background: #fff; color: #000; padding: 0.25rem;`}
+              >
+                {key.replace(/\s/g, "")}
+              </div>
+              {props.actions[key].desc}
             </div>
-            {props.actions[key].desc}
-          </div>
+          </Show>
         )}
       </For>
     </div>
@@ -410,6 +418,8 @@ function Root() {
     }
   };
 
+  const [keyInput, setKeyInput] = createSignal("");
+
   const keydownListener = (event: KeyboardEvent) => {
     const { key, ctrlKey, shiftKey, altKey } = event;
 
@@ -430,7 +440,7 @@ function Root() {
       }
 
       clearAllHighlights();
-      state.keyInput = "";
+      setKeyInput("");
       state.highlightState = HighlightState.None;
       state.highlightInput = "";
       return;
@@ -447,26 +457,30 @@ function Root() {
       return;
     }
 
-    if (state.keyInput.length > 0) {
-      state.keyInput += " ";
+    if (keyInput().length > 0) {
+      setKeyInput((ki) => ki + " ");
     }
 
-    state.keyInput += `${ctrlKey ? "C-" : ""}${shiftKey ? "S-" : ""}${
-      altKey ? "A-" : ""
-    }${key.toLowerCase()}`;
+    setKeyInput(
+      (ki) =>
+        ki +
+        `${ctrlKey ? "C-" : ""}${shiftKey ? "S-" : ""}${
+          altKey ? "A-" : ""
+        }${key.toLowerCase()}`
+    );
 
     event.stopImmediatePropagation();
     event.stopPropagation();
 
-    const keyInput = state.keyInput;
-    const filtered = actionKeys.filter((key) => key.startsWith(keyInput));
+    const input = keyInput();
+    const filtered = actionKeys.filter((key) => key.startsWith(input));
     const firstResult = filtered[0];
-    if (filtered.length === 1 && firstResult === keyInput) {
+    if (filtered.length === 1 && firstResult === input) {
       event.preventDefault();
       actions[firstResult].fn(event);
-      state.keyInput = "";
+      setKeyInput("");
     } else if (filtered.length === 0) {
-      state.keyInput = "";
+      setKeyInput("");
     }
   };
 
@@ -488,8 +502,12 @@ function Root() {
 
   return (
     <>
-      <Show when={showActionHelp()}>
-        <ActionsHelp actions={actions} actionKeys={actionKeys} />
+      <Show when={keyInput().length > 0 || showActionHelp()}>
+        <ActionsHelp
+          keyInput={keyInput()}
+          actions={actions}
+          actionKeys={actionKeys}
+        />
       </Show>
     </>
   );
