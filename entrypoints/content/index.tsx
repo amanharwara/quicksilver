@@ -1,3 +1,5 @@
+import "./styles.css";
+
 const letters = Array(26)
   .fill(0)
   .map((_, index) => {
@@ -40,6 +42,7 @@ function findOverflowingParent(element: Element) {
 function createElement(
   tag: keyof HTMLElementTagNameMap,
   options: {
+    className?: string;
     styles?: {
       [key in keyof Partial<CSSStyleDeclaration>]: string;
     };
@@ -48,7 +51,10 @@ function createElement(
   } = {}
 ) {
   const element = document.createElement(tag);
-  const { styles, children, text } = options;
+  const { className, styles, children, text } = options;
+  if (className) {
+    element.className = className;
+  }
   if (styles) {
     Object.assign(element.style, styles);
   }
@@ -102,10 +108,10 @@ function ActionsHelp(props: {
         background: "#000",
         color: "#fff",
         padding: "1rem",
-        "font-size": "16px",
         "font-family": "sans-serif",
         width: "50vw",
         "max-height": "50vh",
+        "overflow-y": "auto",
       }}
     >
       <For each={props.actionKeys}>
@@ -152,21 +158,35 @@ function ClickableItemComp(props: {
   index: number;
   selectedIndex: number;
 }) {
+  let itemElement: HTMLDivElement | undefined;
+
   const [isHovered, setIsHovered] = createSignal(false);
   const context = useContext(mainContext);
+
+  createEffect(() => {
+    if (props.index === props.selectedIndex && itemElement) {
+      itemElement.scrollIntoView({
+        block: "nearest",
+      });
+    }
+  });
+
   return (
     <div
+      ref={itemElement}
       style={{
-        display: "flex",
-        "flex-direction": "column",
+        display: "grid",
+        "grid-template-columns": "2fr auto",
+        "grid-template-rows": "repeat(2,1fr)",
+        "align-items": "center",
         gap: "0.35rem",
-        padding: "1rem 1.25rem",
+        padding: "1.25rem",
         background:
           props.index === props.selectedIndex || isHovered()
             ? "color-mix(in oklab, black, white 20%)"
             : "",
         "user-select": "none",
-        position: "relative",
+        "overflow-x": "clip",
       }}
       onClick={(event) => {
         const element = props.item.element;
@@ -177,77 +197,59 @@ function ClickableItemComp(props: {
         }
         context?.resetState(true);
       }}
-      onMouseOver={() => setIsHovered(true)}
+      onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       <div
         style={{
+          "grid-column-end": "2",
           "font-weight": "bold",
-          "font-size": "15px",
         }}
       >
         {props.item.text}
       </div>
       <div
         style={{
-          "font-size": "13px",
+          "grid-column-end": "2",
+          "font-size": "smaller",
+          "white-space": "nowrap",
+          "text-overflow": "ellipsis",
+          overflow: "hidden",
         }}
       >
         <Show when={props.item.href} fallback={"<button>"}>
           {props.item.href}
         </Show>
       </div>
-      <Show when={props.index === props.selectedIndex || isHovered()}>
-        <div
-          style={{
-            display: "flex",
-            "flex-direction": "column",
-            "align-items": "end",
-            gap: "0.25rem",
-            position: "absolute",
-            right: "1rem",
-            top: "50%",
-            translate: "0 -50%",
-            "font-size": "small",
-          }}
-        >
-          <div style={{ display: "flex", "align-items": "center" }}>
-            <kbd
-              style={{
-                background: "#fff",
-                color: "#000",
-              }}
-            >
-              Enter
-            </kbd>{" "}
-            <span style={{ "margin-left": "4px" }}>
-              {props.item.href ? "open" : "click"}
-            </span>
-          </div>
-          <Show when={props.item.href}>
-            <div style={{ display: "flex", "align-items": "center" }}>
-              <kbd
-                style={{
-                  background: "#fff",
-                  color: "#000",
-                }}
-              >
-                Ctrl
-              </kbd>
-              <span style={{ margin: "2px" }}>+</span>
-              <kbd
-                style={{
-                  background: "#fff",
-                  color: "#000",
-                }}
-              >
-                Enter
-              </kbd>
-              <span style={{ "margin-left": "4px" }}>new tab</span>
-            </div>
-          </Show>
+      <div
+        style={{
+          display: "flex",
+          "flex-direction": "column",
+          "align-items": "end",
+          "grid-column-start": "2",
+          "grid-row": "1 / 3",
+          gap: "0.25rem",
+          "font-size": "small",
+          "pointer-events": "none",
+          opacity:
+            props.index === props.selectedIndex || isHovered() ? "1" : "0",
+        }}
+      >
+        <div style={{ display: "flex", "align-items": "center" }}>
+          <kbd>Enter</kbd>{" "}
+          <span style={{ "margin-left": "4px" }}>
+            {props.item.href ? "open" : "click"}
+          </span>
         </div>
-      </Show>
+        <Show when={props.item.href}>
+          <div style={{ display: "flex", "align-items": "center" }}>
+            <kbd>Ctrl</kbd>
+            <span style={{ margin: "2px" }}>+</span>
+            <kbd>Enter</kbd>
+            <span style={{ "margin-left": "4px" }}>new tab</span>
+          </div>
+        </Show>
+      </div>
     </div>
   );
 }
@@ -284,7 +286,13 @@ function LinkAndButtonList() {
   const filtered = createMemo(() => {
     const q = query();
     if (q.length === 0) return items;
-    return items.filter((a) => a.text.toLowerCase().includes(q.toLowerCase()));
+    return items.filter((a) => {
+      const lowercaseQuery = q.toLowerCase();
+      return (
+        a.text.toLowerCase().includes(lowercaseQuery) ||
+        a.href?.toLowerCase().includes(lowercaseQuery)
+      );
+    });
   });
 
   const clickListener = (event: MouseEvent) => {
@@ -321,17 +329,17 @@ function LinkAndButtonList() {
         translate: "-50% 0",
         background: "#000",
         color: "#fff",
-        "font-size": "16px",
         "font-family": "sans-serif",
         width: "65vw",
         "max-height": "50vh",
+        "z-index": "69420",
       }}
     >
       <div
         style={{
           display: "flex",
           "flex-direction": "column",
-          "overflow-y": "auto",
+          "overflow-y": "scroll",
           padding: "0.5rem 0",
         }}
       >
@@ -397,27 +405,17 @@ function LinkAndButtonList() {
 }
 
 function Root() {
+  let highlightsContainer: HTMLDivElement | undefined;
+
   const state: {
     activeElement: HTMLElement | null;
     keyInput: string;
-    highlightsContainer: HTMLElement;
     highlightState: HighlightState;
     highlightInput: string;
     highlightInteractionMode: ElementInteractionMode;
   } = {
     activeElement: null,
     keyInput: "",
-    highlightsContainer: createElement("div", {
-      styles: {
-        position: "fixed",
-        pointerEvents: "none",
-        top: "0",
-        left: "0",
-        width: "100%",
-        height: "100%",
-        zIndex: "69420",
-      },
-    }),
     highlightState: HighlightState.None,
     highlightInput: "",
     highlightInteractionMode: ElementInteractionMode.Click,
@@ -445,7 +443,10 @@ function Root() {
     for (const [id, highlight] of idToHighlightMap) {
       removeHighlight(id, highlight);
     }
-    for (const child of Array.from(state.highlightsContainer.children)) {
+    if (!highlightsContainer) {
+      return;
+    }
+    for (const child of Array.from(highlightsContainer.children)) {
       child.remove();
     }
   }
@@ -478,20 +479,16 @@ function Root() {
       }
       const id = highlightIDs.next().value;
       const highlight = createElement("div", {
+        className: "absolute top-0 left-0 z-69420",
         styles: {
-          position: "absolute",
-          top: "0",
-          left: "0",
-          zIndex: "69420",
           translate: `${elementRect.x}px ${elementRect.y}px`,
           background: `hsl(50deg 80% 80%)`,
           color: "black",
           padding: "1px 2px",
-          fontSize: "16px",
         },
         text: id as string,
       });
-      state.highlightsContainer.append(highlight);
+      highlightsContainer?.append(highlight);
       idToHighlightMap.set(id as string, highlight);
       highlightToElementMap.set(highlight, element);
       createdHighlights++;
@@ -777,16 +774,12 @@ function Root() {
   };
 
   onMount(() => {
-    document.body.append(state.highlightsContainer);
-
     document.documentElement.addEventListener("click", clickListener);
     document.body.addEventListener("focusin", focusListener);
     window.addEventListener("keydown", keydownListener);
   });
 
   onCleanup(() => {
-    state.highlightsContainer.remove();
-
     document.documentElement.removeEventListener("click", clickListener);
     document.body.removeEventListener("focusin", focusListener);
     window.removeEventListener("keydown", keydownListener);
@@ -800,6 +793,10 @@ function Root() {
         interact: handleElementInteraction,
       }}
     >
+      <div
+        ref={highlightsContainer}
+        class="fixed top-0 left-0 w-full h-full z-69420 pointer-events-none"
+      />
       <Show when={keyInput().length > 0 || showActionHelp()}>
         <ActionsHelp
           keyInput={keyInput()}
@@ -818,13 +815,16 @@ export default defineContentScript({
   matches: ["<all_urls>"],
   allFrames: true,
   matchOriginAsFallback: true,
-  main(ctx) {
+  cssInjectionMode: "ui",
+  async main(ctx) {
     log("Loaded content script");
 
-    const ui = createIntegratedUi(ctx, {
+    const ui = await createShadowRootUi(ctx, {
+      name: "quicksilver-ui",
       position: "inline",
-      onMount(wrapper) {
-        render(() => <Root />, wrapper);
+      anchor: "body",
+      onMount(uiContainer) {
+        render(() => <Root />, uiContainer);
       },
     });
     ui.mount();
