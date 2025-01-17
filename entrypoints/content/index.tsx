@@ -1,4 +1,4 @@
-import "./styles.css";
+import "./styles.scss";
 
 const letters = Array(26)
   .fill(0)
@@ -6,6 +6,10 @@ const letters = Array(26)
     let i = index + 97;
     return String.fromCharCode(i);
   });
+
+function rem(n: number) {
+  return `${n * 16}px`;
+}
 
 export function* twoCharIDGenerator() {
   for (const letter of letters) {
@@ -97,17 +101,12 @@ function ActionsHelp(props: {
 }) {
   return (
     <div
+      class="qs-popup"
       style={{
         display: "flex",
         "flex-direction": "column",
-        gap: "0.75rem",
-        position: "fixed",
-        bottom: "1rem",
-        left: "50%",
-        translate: "-50% 0",
-        background: "#000",
-        color: "#fff",
-        padding: "1rem",
+        gap: rem(0.75),
+        padding: rem(1),
         "font-family": "sans-serif",
         width: "50vw",
         "max-height": "50vh",
@@ -121,9 +120,20 @@ function ActionsHelp(props: {
           const startsWithKeyInput = () => key.startsWith(props.keyInput);
           return (
             <Show when={noKeyInput() || startsWithKeyInput()}>
-              <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <div
+                style={{
+                  display: "flex",
+                  "align-items": "center",
+                  gap: rem(0.75),
+                }}
+              >
                 <div
-                  style={`font-family: "SF Mono", monospace; background: #fff; color: #000; padding: 0.25rem;`}
+                  style={{
+                    "font-family": `"SF Mono", monospace`,
+                    background: "#fff",
+                    color: "#000",
+                    padding: rem(0.25),
+                  }}
                 >
                   <Show
                     when={startsWithKeyInput}
@@ -157,8 +167,9 @@ function ClickableItemComp(props: {
   item: ClickableItem;
   index: number;
   selectedIndex: number;
+  query: string;
 }) {
-  let itemElement: HTMLDivElement | undefined;
+  let itemElement: HTMLButtonElement | undefined;
 
   const [isHovered, setIsHovered] = createSignal(false);
   const context = useContext(mainContext);
@@ -171,20 +182,34 @@ function ClickableItemComp(props: {
     }
   });
 
+  const indexOfQueryInText = createMemo(() => {
+    if (props.query.length === 0) return -1;
+    if (props.item.text.length === 0) return -1;
+    return props.item.text.toLowerCase().indexOf(props.query.toLowerCase());
+  });
+
+  const indexOfQueryInHref = createMemo(() => {
+    if (props.query.length === 0) return -1;
+    if (!props.item.href || props.item.href.length === 0) return -1;
+    return props.item.href.toLowerCase().indexOf(props.query.toLowerCase());
+  });
+
   return (
-    <div
+    <button
       ref={itemElement}
       style={{
         display: "grid",
         "grid-template-columns": "2fr auto",
         "grid-template-rows": "repeat(2,1fr)",
         "align-items": "center",
-        gap: "0.35rem",
-        padding: "1.25rem",
+        gap: rem(0.125),
+        "padding-block": rem(0.75),
+        "padding-inline": rem(1.25),
         background:
           props.index === props.selectedIndex || isHovered()
-            ? "color-mix(in oklab, black, white 20%)"
-            : "",
+            ? "var(--bg-700)"
+            : "transparent",
+        color: "inherit",
         "user-select": "none",
         "overflow-x": "clip",
       }}
@@ -206,7 +231,23 @@ function ClickableItemComp(props: {
           "font-weight": "bold",
         }}
       >
-        {props.item.text}
+        <Show when={indexOfQueryInText() > -1} fallback={props.item.text}>
+          <span>{props.item.text.slice(0, indexOfQueryInText())}</span>
+          <span
+            style={{
+              background: "var(--bg-600)",
+              padding: "1px",
+            }}
+          >
+            {props.item.text.slice(
+              indexOfQueryInText(),
+              indexOfQueryInText() + props.query.length
+            )}
+          </span>
+          <span>
+            {props.item.text.slice(indexOfQueryInText() + props.query.length)}
+          </span>
+        </Show>
       </div>
       <div
         style={{
@@ -218,7 +259,25 @@ function ClickableItemComp(props: {
         }}
       >
         <Show when={props.item.href} fallback={"<button>"}>
-          {props.item.href}
+          {(href) => (
+            <Show when={indexOfQueryInHref() > -1} fallback={href()}>
+              <span>{href().slice(0, indexOfQueryInHref())}</span>
+              <span
+                style={{
+                  background: "var(--bg-600)",
+                  padding: "1px",
+                }}
+              >
+                {href().slice(
+                  indexOfQueryInHref(),
+                  indexOfQueryInHref() + props.query.length
+                )}
+              </span>
+              <span>
+                {href().slice(indexOfQueryInHref() + props.query.length)}
+              </span>
+            </Show>
+          )}
         </Show>
       </div>
       <div
@@ -228,7 +287,7 @@ function ClickableItemComp(props: {
           "align-items": "end",
           "grid-column-start": "2",
           "grid-row": "1 / 3",
-          gap: "0.25rem",
+          gap: rem(0.25),
           "font-size": "small",
           "pointer-events": "none",
           opacity:
@@ -250,7 +309,7 @@ function ClickableItemComp(props: {
           </div>
         </Show>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -320,15 +379,10 @@ function LinkAndButtonList() {
   return (
     <div
       ref={container}
+      class="qs-popup"
       style={{
         display: "flex",
         "flex-direction": "column",
-        position: "fixed",
-        bottom: "1rem",
-        left: "50%",
-        translate: "-50% 0",
-        background: "#000",
-        color: "#fff",
         "font-family": "sans-serif",
         width: "65vw",
         "max-height": "50vh",
@@ -340,7 +394,8 @@ function LinkAndButtonList() {
           display: "flex",
           "flex-direction": "column",
           "overflow-y": "scroll",
-          padding: "0.5rem 0",
+          "padding-block": rem(0.5),
+          "padding-inline": "0",
         }}
       >
         <For each={filtered()}>
@@ -349,6 +404,7 @@ function LinkAndButtonList() {
               item={item}
               index={index()}
               selectedIndex={selectedIndex()}
+              query={query()}
             />
           )}
         </For>
@@ -358,10 +414,10 @@ function LinkAndButtonList() {
         style={{
           background: "inherit",
           color: "inherit",
-          padding: "0.5rem 1rem",
+          "padding-block": rem(0.5),
+          "padding-inline": rem(1),
           border: "1px solid transparent",
           "border-radius": "0",
-          // outline: "2px solid cornflowerblue",
         }}
         value={query()}
         onKeyDown={(event) => {
