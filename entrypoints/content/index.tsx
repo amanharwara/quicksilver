@@ -1,4 +1,4 @@
-import "./styles.scss";
+import { JSX, ParentProps } from "solid-js";
 
 const letters = Array(26)
   .fill(0)
@@ -88,11 +88,50 @@ type Actions = Record<
   { desc: string; fn: (event: KeyboardEvent) => void }
 >;
 
+const Colors = {
+  "bg-800": "color-mix(in oklab, cornflowerblue, black 80%)",
+  "bg-700": "color-mix(in oklab, cornflowerblue, black 70%)",
+  "bg-600": "color-mix(in oklab, cornflowerblue, black 60%)",
+  "fg-900": "color-mix(in oklab, cornflowerblue, white 90%)",
+};
+
+const ButtonDefaultStyles: JSX.CSSProperties = {
+  margin: "0",
+  padding: "0",
+  "border-color": "transparent",
+  "font-family": "inherit",
+  "font-size": "inherit",
+  "text-align": "left",
+};
+
 const mainContext = createContext<{
   hideAllPopups: () => void;
   resetState: (hidePopups: boolean) => void;
   interact: (element: HTMLElement, mode: ElementInteractionMode) => void;
 }>();
+
+const PopupStyles: JSX.CSSProperties = {
+  position: "fixed",
+  bottom: rem(0.5),
+  left: "50%",
+  translate: "-50% 0",
+  background: Colors["bg-800"],
+  color: Colors["fg-900"],
+  "font-size": rem(1),
+};
+function Popup(props: ParentProps) {
+  return <div style={PopupStyles}>{props.children}</div>;
+}
+
+const KbdStyles: JSX.CSSProperties = {
+  border: `${rem(0.125)} solid #696969`,
+  "border-radius": `${rem(0.25)}`,
+  "box-shadow": "inset 0 -1px 0 0 #696969",
+  padding: `${rem(0.125)} ${rem(0.325)}`,
+};
+function Kbd(props: ParentProps) {
+  return <kbd style={KbdStyles}>{props.children}</kbd>;
+}
 
 function ActionsHelp(props: {
   keyInput: string;
@@ -100,60 +139,61 @@ function ActionsHelp(props: {
   actions: Actions;
 }) {
   return (
-    <div
-      class="qs-popup"
-      style={{
-        display: "flex",
-        "flex-direction": "column",
-        gap: rem(0.75),
-        padding: rem(1),
-        "font-family": "sans-serif",
-        width: "50vw",
-        "max-height": "50vh",
-        "overflow-y": "auto",
-      }}
-    >
-      <For each={props.actionKeys}>
-        {(key) => {
-          const keyInputLength = () => props.keyInput.length;
-          const noKeyInput = () => keyInputLength() === 0;
-          const startsWithKeyInput = () => key.startsWith(props.keyInput);
-          return (
-            <Show when={noKeyInput() || startsWithKeyInput()}>
-              <div
-                style={{
-                  display: "flex",
-                  "align-items": "center",
-                  gap: rem(0.75),
-                }}
-              >
+    <Popup>
+      <div
+        style={{
+          display: "flex",
+          "flex-direction": "column",
+          gap: rem(0.75),
+          padding: rem(1),
+          "font-family": "sans-serif",
+          width: "50vw",
+          "max-height": "50vh",
+          "overflow-y": "auto",
+        }}
+      >
+        <For each={props.actionKeys}>
+          {(key) => {
+            const keyInputLength = () => props.keyInput.length;
+            const noKeyInput = () => keyInputLength() === 0;
+            const startsWithKeyInput = () => key.startsWith(props.keyInput);
+            return (
+              <Show when={noKeyInput() || startsWithKeyInput()}>
                 <div
                   style={{
-                    "font-family": `"SF Mono", monospace`,
-                    background: "#fff",
-                    color: "#000",
-                    padding: rem(0.25),
+                    display: "flex",
+                    "align-items": "center",
+                    gap: rem(0.75),
                   }}
                 >
-                  <Show
-                    when={startsWithKeyInput}
-                    fallback={key.replace(/\s/g, "")}
+                  <div
+                    style={{
+                      "font-family": `"SF Mono", monospace`,
+                      background: "#fff",
+                      color: "#000",
+                      padding: rem(0.25),
+                    }}
                   >
-                    <span style="opacity: 0.5">
-                      {key.slice(0, keyInputLength()).replace(/\s/g, "")}
-                    </span>
-                    <span>
-                      {key.slice(keyInputLength()).replace(/\s/g, "")}
-                    </span>
-                  </Show>
+                    <Show
+                      when={startsWithKeyInput}
+                      fallback={key.replace(/\s/g, "")}
+                    >
+                      <span style="opacity: 0.5">
+                        {key.slice(0, keyInputLength()).replace(/\s/g, "")}
+                      </span>
+                      <span>
+                        {key.slice(keyInputLength()).replace(/\s/g, "")}
+                      </span>
+                    </Show>
+                  </div>
+                  {props.actions[key].desc}
                 </div>
-                {props.actions[key].desc}
-              </div>
-            </Show>
-          );
-        }}
-      </For>
-    </div>
+              </Show>
+            );
+          }}
+        </For>
+      </div>
+    </Popup>
   );
 }
 
@@ -198,6 +238,7 @@ function ClickableItemComp(props: {
     <button
       ref={itemElement}
       style={{
+        ...ButtonDefaultStyles,
         display: "grid",
         "grid-template-columns": "2fr auto",
         "grid-template-rows": "repeat(2,1fr)",
@@ -207,7 +248,7 @@ function ClickableItemComp(props: {
         "padding-inline": rem(1.25),
         background:
           props.index === props.selectedIndex || isHovered()
-            ? "var(--bg-700)"
+            ? Colors["bg-700"]
             : "transparent",
         color: "inherit",
         "user-select": "none",
@@ -235,7 +276,7 @@ function ClickableItemComp(props: {
           <span>{props.item.text.slice(0, indexOfQueryInText())}</span>
           <span
             style={{
-              background: "var(--bg-600)",
+              background: Colors["bg-600"],
               padding: "1px",
             }}
           >
@@ -264,7 +305,7 @@ function ClickableItemComp(props: {
               <span>{href().slice(0, indexOfQueryInHref())}</span>
               <span
                 style={{
-                  background: "var(--bg-600)",
+                  background: Colors["bg-600"],
                   padding: "1px",
                 }}
               >
@@ -295,16 +336,16 @@ function ClickableItemComp(props: {
         }}
       >
         <div style={{ display: "flex", "align-items": "center" }}>
-          <kbd>Enter</kbd>{" "}
+          <Kbd>Enter</Kbd>{" "}
           <span style={{ "margin-left": "4px" }}>
             {props.item.href ? "open" : "click"}
           </span>
         </div>
         <Show when={props.item.href}>
           <div style={{ display: "flex", "align-items": "center" }}>
-            <kbd>Ctrl</kbd>
+            <Kbd>Ctrl</Kbd>
             <span style={{ margin: "2px" }}>+</span>
-            <kbd>Enter</kbd>
+            <Kbd>Enter</Kbd>
             <span style={{ "margin-left": "4px" }}>new tab</span>
           </div>
         </Show>
@@ -313,7 +354,7 @@ function ClickableItemComp(props: {
   );
 }
 
-function LinkAndButtonList() {
+function SearchLinksAndButtons() {
   let container: HTMLDivElement | undefined;
   let input: HTMLInputElement | undefined;
 
@@ -377,86 +418,88 @@ function LinkAndButtonList() {
   });
 
   return (
-    <div
-      ref={container}
-      class="qs-popup"
-      style={{
-        display: "flex",
-        "flex-direction": "column",
-        "font-family": "sans-serif",
-        width: "65vw",
-        "max-height": "50vh",
-        "z-index": "69420",
-      }}
-    >
+    <Popup>
       <div
+        ref={container}
         style={{
           display: "flex",
           "flex-direction": "column",
-          "overflow-y": "scroll",
-          "padding-block": rem(0.5),
-          "padding-inline": "0",
+          "font-family": "sans-serif",
+          width: "65vw",
+          "max-height": "50vh",
+          "z-index": "69420",
         }}
       >
-        <For each={filtered()}>
-          {(item, index) => (
-            <ClickableItemComp
-              item={item}
-              index={index()}
-              selectedIndex={selectedIndex()}
-              query={query()}
-            />
-          )}
-        </For>
-      </div>
-      <input
-        ref={input}
-        style={{
-          background: "inherit",
-          color: "inherit",
-          "padding-block": rem(0.5),
-          "padding-inline": rem(1),
-          border: "1px solid transparent",
-          "border-radius": "0",
-        }}
-        value={query()}
-        onKeyDown={(event) => {
-          const { key } = event;
-          if (key !== "Escape") {
-            event.stopImmediatePropagation();
-          }
-          switch (key) {
-            case "ArrowDown":
-              setSelectedIndex((index) =>
-                Math.min(index + 1, filtered().length)
-              );
-              break;
-            case "ArrowUp":
-              setSelectedIndex((index) => Math.max(index - 1, 0));
-              break;
-            case "Enter": {
-              const item = filtered()[selectedIndex()];
-              if (item) {
-                context?.interact(
-                  item.element,
-                  event.ctrlKey
-                    ? ElementInteractionMode.OpenInNewTab
-                    : ElementInteractionMode.Click
-                );
-              }
-              context?.resetState(true);
-              break;
+        <div
+          style={{
+            display: "flex",
+            "flex-direction": "column",
+            "overflow-y": "scroll",
+            "padding-block": rem(0.5),
+            "padding-inline": "0",
+          }}
+        >
+          <For each={filtered()}>
+            {(item, index) => (
+              <ClickableItemComp
+                item={item}
+                index={index()}
+                selectedIndex={selectedIndex()}
+                query={query()}
+              />
+            )}
+          </For>
+        </div>
+        <input
+          ref={input}
+          class="qs-input"
+          style={{
+            background: "inherit",
+            color: "inherit",
+            "padding-block": rem(0.5),
+            "padding-inline": rem(1),
+            border: "1px solid transparent",
+            "border-radius": "0",
+          }}
+          value={query()}
+          onKeyDown={(event) => {
+            const { key } = event;
+            if (key !== "Escape") {
+              event.stopImmediatePropagation();
             }
-            default:
-              break;
-          }
-        }}
-        onInput={(event) => {
-          event.stopImmediatePropagation();
-          setQuery(event.target.value);
-        }}
-      />
-    </div>
+            switch (key) {
+              case "ArrowDown":
+                setSelectedIndex((index) =>
+                  Math.min(index + 1, filtered().length)
+                );
+                break;
+              case "ArrowUp":
+                setSelectedIndex((index) => Math.max(index - 1, 0));
+                break;
+              case "Enter": {
+                const item = filtered()[selectedIndex()];
+                if (item) {
+                  context?.interact(
+                    item.element,
+                    event.ctrlKey
+                      ? ElementInteractionMode.OpenInNewTab
+                      : ElementInteractionMode.Click
+                  );
+                }
+                context?.resetState(true);
+                break;
+              }
+              default:
+                break;
+            }
+          }}
+          onInput={(event) => {
+            event.stopImmediatePropagation();
+            setQuery(event.target.value);
+          }}
+        />
+      </div>
+    </Popup>
   );
 }
 
@@ -861,8 +904,16 @@ function Root() {
         />
       </Show>
       <Show when={showLinkAndButtonList()}>
-        <LinkAndButtonList />
+        <SearchLinksAndButtons />
       </Show>
+      <style>{`
+.qs-input {
+  outline: 0;
+}
+.qs-input:focus-visible {
+  outline: 2px solid cornflowerblue;
+}
+`}</style>
     </mainContext.Provider>
   );
 }
@@ -872,13 +923,11 @@ export default defineContentScript({
   allFrames: true,
   matchOriginAsFallback: true,
   cssInjectionMode: "ui",
-  async main(ctx) {
+  main(ctx) {
     log("Loaded content script");
 
-    const ui = await createShadowRootUi(ctx, {
-      name: "quicksilver-ui",
+    const ui = createIntegratedUi(ctx, {
       position: "inline",
-      anchor: "body",
       onMount(uiContainer) {
         render(() => <Root />, uiContainer);
       },
