@@ -812,6 +812,8 @@ function Root() {
       state.highlightState === HighlightState.Highlighted &&
       key !== "Escape"
     ) {
+      event.stopImmediatePropagation();
+      event.stopPropagation();
       updateHighlightInput(key, event);
       return;
     }
