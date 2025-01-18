@@ -23,9 +23,9 @@ export function* twoCharIDGenerator() {
 }
 
 function log(...args: any[]) {
-  // if (!import.meta.env.DEV) {
-  //   return;
-  // }
+  if (!import.meta.env.DEV) {
+    return;
+  }
   console.group("quicksilver");
   console.log(...args);
   console.groupEnd();
@@ -132,6 +132,7 @@ const PopupStyles: JSX.CSSProperties = {
   translate: "-50% 0",
   background: Colors["cb-dark-70"],
   color: Colors["cb-light-90"],
+  "font-family": "sans-serif",
   "font-size": rem(1),
   "border-radius": rem(0.25),
   "z-index": 69420,
@@ -189,7 +190,6 @@ function ActionsHelp(props: {
           "flex-direction": "column",
           gap: rem(0.75),
           padding: rem(1),
-          "font-family": "sans-serif",
           width: "50vw",
           "max-height": "50vh",
           "overflow-y": "auto",
@@ -441,7 +441,6 @@ function SearchLinksAndButtons() {
         style={{
           display: "flex",
           "flex-direction": "column",
-          "font-family": "sans-serif",
           width: "65vw",
           "max-height": "50vh",
           "z-index": "69420",
@@ -564,8 +563,10 @@ function Root() {
     highlightInteractionMode: ElementInteractionMode.Click,
   };
 
-  const [showActionHelp, setShowActionHelp] = createSignal(false);
+  const [isPassthrough, setIsPassthrough] = createSignal(false);
+  const [keyInput, setKeyInput] = createSignal("");
 
+  const [showActionHelp, setShowActionHelp] = createSignal(false);
   const [showLinkAndButtonList, setShowListAndButtonList] = createSignal(false);
 
   function hideAllPopups() {
@@ -785,6 +786,10 @@ function Root() {
     }
   }
 
+  function togglePassthrough() {
+    setIsPassthrough((is) => !is);
+  }
+
   const actions: Actions = {
     k: { desc: "Scroll up", fn: scrollUp },
     j: { desc: "Scroll down", fn: scrollDown },
@@ -803,6 +808,7 @@ function Root() {
       fn: highlightLinksToOpenInNewTab,
     },
     "S-?": { desc: "Show help", fn: () => setShowActionHelp((show) => !show) },
+    p: { desc: "Toggle passthrough", fn: togglePassthrough },
   };
 
   const actionKeyCombinations = Object.keys(actions);
@@ -825,14 +831,13 @@ function Root() {
     }
   };
 
-  const [keyInput, setKeyInput] = createSignal("");
-
   function resetState(hidePopups: boolean) {
     if (hidePopups) {
       hideAllPopups();
     }
     clearAllHighlights();
     setKeyInput("");
+    setIsPassthrough(false);
     state.highlightState = HighlightState.None;
     state.highlightInput = "";
   }
@@ -872,7 +877,15 @@ function Root() {
       return;
     }
 
-    if (!actionUniqueKeys.has(key)) {
+    const keyRepresentation = `${ctrlKey ? "C-" : ""}${shiftKey ? "S-" : ""}${
+      altKey ? "A-" : ""
+    }${key.toLowerCase()}`;
+
+    if (isPassthrough() && keyRepresentation !== "p") {
+      return;
+    }
+
+    if (!actionUniqueKeys.has(key.toLowerCase())) {
       return;
     }
 
@@ -880,13 +893,7 @@ function Root() {
       setKeyInput((ki) => ki + " ");
     }
 
-    setKeyInput(
-      (ki) =>
-        ki +
-        `${ctrlKey ? "C-" : ""}${shiftKey ? "S-" : ""}${
-          altKey ? "A-" : ""
-        }${key.toLowerCase()}`
-    );
+    setKeyInput((ki) => ki + keyRepresentation);
 
     event.stopImmediatePropagation();
     event.stopPropagation();
@@ -949,6 +956,17 @@ function Root() {
       </Show>
       <Show when={showLinkAndButtonList()}>
         <SearchLinksAndButtons />
+      </Show>
+      <Show when={isPassthrough()}>
+        <div
+          style={{
+            ...PopupStyles,
+            width: "auto",
+            padding: rem(0.5),
+          }}
+        >
+          Passthrough
+        </div>
       </Show>
       <style>{`
 .qs-input {
