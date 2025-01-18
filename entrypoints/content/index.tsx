@@ -23,9 +23,9 @@ export function* twoCharIDGenerator() {
 }
 
 function log(...args: any[]) {
-  if (!import.meta.env.DEV) {
-    return;
-  }
+  // if (!import.meta.env.DEV) {
+  //   return;
+  // }
   console.group("quicksilver");
   console.log(...args);
   console.groupEnd();
@@ -381,7 +381,7 @@ function SearchLinksAndButtons() {
       }
     }
     if (text.length === 0) {
-      text = ariaLabel || textContent;
+      text = ariaLabel || textContent || element.title;
     }
     if (!text) continue;
     let href: string | undefined;
@@ -594,7 +594,7 @@ function Root() {
     }
   }
 
-  function highlightElementsBySelector(selector: string) {
+  function highlightElementsBySelector(selector: string, checkOpacity = true) {
     clearAllHighlights();
     const elements = document.querySelectorAll<HTMLElement>(selector);
     if (!elements) {
@@ -615,7 +615,7 @@ function Root() {
         elementRect.width > 0 &&
         elementRect.height > 0;
       const isVisible = element.checkVisibility({
-        checkOpacity: true,
+        checkOpacity,
       });
       if (!isInViewport || !isVisible) {
         continue;
@@ -781,7 +781,7 @@ function Root() {
   function highlightAllInputs() {
     if (state.highlightState === HighlightState.None) {
       state.highlightInteractionMode = ElementInteractionMode.Focus;
-      highlightElementsBySelector("input,textarea,[contenteditable]");
+      highlightElementsBySelector("input,textarea,[contenteditable]", false);
     }
   }
 
@@ -805,7 +805,13 @@ function Root() {
     "S-?": { desc: "Show help", fn: () => setShowActionHelp((show) => !show) },
   };
 
-  const actionKeys = Object.keys(actions);
+  const actionKeyCombinations = Object.keys(actions);
+
+  const actionUniqueKeys = new Set(
+    actionKeyCombinations
+      .map((kc) => kc.replace(/[CSA]-/g, "").split(" "))
+      .flat()
+  );
 
   const clickListener = (event: MouseEvent) => {
     if (event.target instanceof HTMLElement) {
@@ -866,7 +872,7 @@ function Root() {
       return;
     }
 
-    if (key.length > 1) {
+    if (!actionUniqueKeys.has(key)) {
       return;
     }
 
@@ -886,7 +892,9 @@ function Root() {
     event.stopPropagation();
 
     const input = keyInput();
-    const filtered = actionKeys.filter((key) => key.startsWith(input));
+    const filtered = actionKeyCombinations.filter((key) =>
+      key.startsWith(input)
+    );
     const firstResult = filtered[0];
     if (filtered.length === 1 && firstResult === input) {
       event.preventDefault();
@@ -936,7 +944,7 @@ function Root() {
         <ActionsHelp
           keyInput={keyInput()}
           actions={actions}
-          actionKeys={actionKeys}
+          actionKeys={actionKeyCombinations}
         />
       </Show>
       <Show when={showLinkAndButtonList()}>
