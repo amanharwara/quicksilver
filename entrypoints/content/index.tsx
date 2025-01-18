@@ -816,6 +816,10 @@ function Root() {
       return;
     }
 
+    if (key.length > 1) {
+      return;
+    }
+
     if (keyInput().length > 0) {
       setKeyInput((ki) => ki + " ");
     }
@@ -846,13 +850,17 @@ function Root() {
   onMount(() => {
     document.documentElement.addEventListener("click", clickListener);
     document.body.addEventListener("focusin", focusListener);
-    window.addEventListener("keydown", keydownListener);
+    document.body.addEventListener("keydown", keydownListener, {
+      capture: true,
+    });
   });
 
   onCleanup(() => {
     document.documentElement.removeEventListener("click", clickListener);
     document.body.removeEventListener("focusin", focusListener);
-    window.removeEventListener("keydown", keydownListener);
+    document.body.removeEventListener("keydown", keydownListener, {
+      capture: true,
+    });
   });
 
   return (
