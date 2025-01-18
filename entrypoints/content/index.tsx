@@ -113,9 +113,7 @@ const HighlightStyles: ElementStyles = {
   fontSize: rem(0.85),
   lineHeight: "1",
   fontFamily: "monospace",
-  border: `${rem(0.125)} solid ${Colors["cb-dark-20"]}`,
   boxShadow: `inset 0 -1px 0 0 ${Colors["cb-dark-20"]}`,
-  borderRadius: rem(0.25),
 };
 
 const ButtonDefaultStyles: JSX.CSSProperties = {
@@ -127,12 +125,6 @@ const ButtonDefaultStyles: JSX.CSSProperties = {
   "text-align": "left",
 };
 
-const mainContext = createContext<{
-  hideAllPopups: () => void;
-  resetState: (hidePopups: boolean) => void;
-  interact: (element: HTMLElement, mode: ElementInteractionMode) => void;
-}>();
-
 const PopupStyles: JSX.CSSProperties = {
   position: "fixed",
   bottom: rem(0.5),
@@ -142,20 +134,46 @@ const PopupStyles: JSX.CSSProperties = {
   color: Colors["cb-light-90"],
   "font-size": rem(1),
   "border-radius": rem(0.25),
+  "z-index": 69420,
 };
 function Popup(props: ParentProps) {
   return <div style={PopupStyles}>{props.children}</div>;
 }
 
 const KbdStyles: JSX.CSSProperties = {
-  border: `${rem(0.125)} solid ${Colors["cb-dark-20"]}`,
-  "border-radius": `${rem(0.25)}`,
   "box-shadow": `inset 0 -1px 0 0 ${Colors["cb-dark-20"]}`,
   background: Colors["cb-dark-50"],
   padding: `${rem(0.125)} ${rem(0.325)}`,
 };
 function Kbd(props: ParentProps) {
   return <kbd style={KbdStyles}>{props.children}</kbd>;
+}
+
+const mainContext = createContext<{
+  hideAllPopups: () => void;
+  resetState: (hidePopups: boolean) => void;
+}>();
+
+function handleElementInteraction(
+  element: HTMLElement,
+  mode: ElementInteractionMode
+) {
+  switch (mode) {
+    case ElementInteractionMode.Click:
+      element.click();
+      break;
+    case ElementInteractionMode.Focus:
+      setTimeout(() => element.focus());
+      break;
+    case ElementInteractionMode.OpenInNewTab: {
+      if (!(element instanceof HTMLAnchorElement)) {
+        return;
+      }
+      const href = element.href;
+      window.open(href, "_blank");
+      break;
+    }
+  }
 }
 
 function ActionsHelp(props: {
@@ -262,10 +280,15 @@ function ClickableItemComp(props: {
       }}
       onClick={(event) => {
         const element = props.item.element;
-        if (event.ctrlKey) {
-          context?.interact(element, ElementInteractionMode.OpenInNewTab);
+        if (props.item.href && event.ctrlKey) {
+          handleElementInteraction(
+            element,
+            ElementInteractionMode.OpenInNewTab
+          );
+        } else if (event.shiftKey) {
+          handleElementInteraction(element, ElementInteractionMode.Focus);
         } else {
-          context?.interact(element, ElementInteractionMode.Click);
+          handleElementInteraction(element, ElementInteractionMode.Click);
         }
         context?.resetState(true);
       }}
@@ -313,6 +336,12 @@ function ClickableItemComp(props: {
             {props.item.href ? "open" : "click"}
           </span>
         </div>
+        <div style={{ display: "flex", "align-items": "center" }}>
+          <Kbd>Shift</Kbd>
+          <span style={{ margin: "2px" }}>+</span>
+          <Kbd>Enter</Kbd>
+          <span style={{ "margin-left": "4px" }}>focus</span>
+        </div>
         <Show when={props.item.href}>
           <div style={{ display: "flex", "align-items": "center" }}>
             <Kbd>Ctrl</Kbd>
@@ -337,7 +366,22 @@ function SearchLinksAndButtons() {
     if (!(element instanceof HTMLElement)) {
       continue;
     }
-    const text = element.textContent;
+    let text: string | null = "";
+    const labelledby = element.getAttribute("aria-labelledby");
+    const ariaLabel = element.ariaLabel;
+    const textContent = element.textContent;
+    if (labelledby) {
+      const ids = labelledby.split(" ");
+      for (const id of ids) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const textContent = el.textContent;
+        if (textContent) text += textContent;
+      }
+    }
+    if (text.length === 0) {
+      text = ariaLabel || textContent;
+    }
     if (!text) continue;
     let href: string | undefined;
     if (element instanceof HTMLAnchorElement) {
@@ -453,12 +497,23 @@ function SearchLinksAndButtons() {
               case "Enter": {
                 const item = filtered()[selectedIndex()];
                 if (item) {
-                  context?.interact(
-                    item.element,
-                    event.ctrlKey
-                      ? ElementInteractionMode.OpenInNewTab
-                      : ElementInteractionMode.Click
-                  );
+                  const element = item.element;
+                  if (item.href && event.ctrlKey) {
+                    handleElementInteraction(
+                      element,
+                      ElementInteractionMode.OpenInNewTab
+                    );
+                  } else if (event.shiftKey) {
+                    handleElementInteraction(
+                      element,
+                      ElementInteractionMode.Focus
+                    );
+                  } else {
+                    handleElementInteraction(
+                      element,
+                      ElementInteractionMode.Click
+                    );
+                  }
                 }
                 context?.resetState(true);
                 break;
@@ -567,28 +622,6 @@ function Root() {
       return;
     }
     state.highlightState = HighlightState.Highlighted;
-  }
-
-  function handleElementInteraction(
-    element: HTMLElement,
-    mode: ElementInteractionMode
-  ) {
-    switch (mode) {
-      case ElementInteractionMode.Click:
-        element.click();
-        break;
-      case ElementInteractionMode.Focus:
-        element.focus();
-        break;
-      case ElementInteractionMode.OpenInNewTab: {
-        if (!(element instanceof HTMLAnchorElement)) {
-          return;
-        }
-        const href = element.href;
-        window.open(href, "_blank");
-        break;
-      }
-    }
   }
 
   function handleHighlightInteraction(id: string) {
@@ -870,7 +903,6 @@ function Root() {
       value={{
         hideAllPopups,
         resetState,
-        interact: handleElementInteraction,
       }}
     >
       <div
