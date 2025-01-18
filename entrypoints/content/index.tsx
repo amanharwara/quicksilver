@@ -43,13 +43,15 @@ function findOverflowingParent(element: Element) {
   return parent;
 }
 
+type ElementStyles = {
+  [key in keyof Partial<CSSStyleDeclaration>]: string;
+};
+
 function createElement(
   tag: keyof HTMLElementTagNameMap,
   options: {
     className?: string;
-    styles?: {
-      [key in keyof Partial<CSSStyleDeclaration>]: string;
-    };
+    styles?: ElementStyles;
     children?: HTMLElement[];
     text?: string;
   } = {}
@@ -89,10 +91,31 @@ type Actions = Record<
 >;
 
 const Colors = {
-  "bg-800": "color-mix(in oklab, cornflowerblue, black 80%)",
-  "bg-700": "color-mix(in oklab, cornflowerblue, black 70%)",
-  "bg-600": "color-mix(in oklab, cornflowerblue, black 60%)",
-  "fg-900": "color-mix(in oklab, cornflowerblue, white 90%)",
+  "cb-dark-80": "color-mix(in oklab, cornflowerblue, black 80%)",
+  "cb-dark-70": "color-mix(in oklab, cornflowerblue, black 70%)",
+  "cb-dark-60": "color-mix(in oklab, cornflowerblue, black 60%)",
+  "cb-dark-50": "color-mix(in oklab, cornflowerblue, black 50%)",
+  "cb-dark-40": "color-mix(in oklab, cornflowerblue, black 40%)",
+  "cb-dark-30": "color-mix(in oklab, cornflowerblue, black 30%)",
+  "cb-dark-20": "color-mix(in oklab, cornflowerblue, black 20%)",
+  cb: "cornflowerblue",
+  "cb-light-90": "color-mix(in oklab, cornflowerblue, white 90%)",
+};
+
+const HighlightStyles: ElementStyles = {
+  position: "absolute",
+  top: "0",
+  left: "0",
+  zIndex: "69420",
+  background: Colors["cb-dark-50"],
+  color: Colors["cb-light-90"],
+  padding: rem(0.25),
+  fontSize: rem(1),
+  lineHeight: "1",
+  fontFamily: "monospace",
+  border: `${rem(0.125)} solid ${Colors["cb-dark-20"]}`,
+  boxShadow: `inset 0 -1px 0 0 ${Colors["cb-dark-20"]}`,
+  borderRadius: rem(0.25),
 };
 
 const ButtonDefaultStyles: JSX.CSSProperties = {
@@ -115,18 +138,20 @@ const PopupStyles: JSX.CSSProperties = {
   bottom: rem(0.5),
   left: "50%",
   translate: "-50% 0",
-  background: Colors["bg-800"],
-  color: Colors["fg-900"],
+  background: Colors["cb-dark-70"],
+  color: Colors["cb-light-90"],
   "font-size": rem(1),
+  "border-radius": rem(0.25),
 };
 function Popup(props: ParentProps) {
   return <div style={PopupStyles}>{props.children}</div>;
 }
 
 const KbdStyles: JSX.CSSProperties = {
-  border: `${rem(0.125)} solid #696969`,
+  border: `${rem(0.125)} solid ${Colors["cb-dark-20"]}`,
   "border-radius": `${rem(0.25)}`,
-  "box-shadow": "inset 0 -1px 0 0 #696969",
+  "box-shadow": `inset 0 -1px 0 0 ${Colors["cb-dark-20"]}`,
+  background: Colors["cb-dark-50"],
   padding: `${rem(0.125)} ${rem(0.325)}`,
 };
 function Kbd(props: ParentProps) {
@@ -166,14 +191,7 @@ function ActionsHelp(props: {
                     gap: rem(0.75),
                   }}
                 >
-                  <div
-                    style={{
-                      "font-family": `"SF Mono", monospace`,
-                      background: "#fff",
-                      color: "#000",
-                      padding: rem(0.25),
-                    }}
-                  >
+                  <Kbd>
                     <Show
                       when={startsWithKeyInput}
                       fallback={key.replace(/\s/g, "")}
@@ -185,7 +203,7 @@ function ActionsHelp(props: {
                         {key.slice(keyInputLength()).replace(/\s/g, "")}
                       </span>
                     </Show>
-                  </div>
+                  </Kbd>
                   {props.actions[key].desc}
                 </div>
               </Show>
@@ -222,18 +240,6 @@ function ClickableItemComp(props: {
     }
   });
 
-  const indexOfQueryInText = createMemo(() => {
-    if (props.query.length === 0) return -1;
-    if (props.item.text.length === 0) return -1;
-    return props.item.text.toLowerCase().indexOf(props.query.toLowerCase());
-  });
-
-  const indexOfQueryInHref = createMemo(() => {
-    if (props.query.length === 0) return -1;
-    if (!props.item.href || props.item.href.length === 0) return -1;
-    return props.item.href.toLowerCase().indexOf(props.query.toLowerCase());
-  });
-
   return (
     <button
       ref={itemElement}
@@ -248,7 +254,7 @@ function ClickableItemComp(props: {
         "padding-inline": rem(1.25),
         background:
           props.index === props.selectedIndex || isHovered()
-            ? Colors["bg-700"]
+            ? Colors["cb-dark-60"]
             : "transparent",
         color: "inherit",
         "user-select": "none",
@@ -272,23 +278,7 @@ function ClickableItemComp(props: {
           "font-weight": "bold",
         }}
       >
-        <Show when={indexOfQueryInText() > -1} fallback={props.item.text}>
-          <span>{props.item.text.slice(0, indexOfQueryInText())}</span>
-          <span
-            style={{
-              background: Colors["bg-600"],
-              padding: "1px",
-            }}
-          >
-            {props.item.text.slice(
-              indexOfQueryInText(),
-              indexOfQueryInText() + props.query.length
-            )}
-          </span>
-          <span>
-            {props.item.text.slice(indexOfQueryInText() + props.query.length)}
-          </span>
-        </Show>
+        {props.item.text}
       </div>
       <div
         style={{
@@ -300,25 +290,7 @@ function ClickableItemComp(props: {
         }}
       >
         <Show when={props.item.href} fallback={"<button>"}>
-          {(href) => (
-            <Show when={indexOfQueryInHref() > -1} fallback={href()}>
-              <span>{href().slice(0, indexOfQueryInHref())}</span>
-              <span
-                style={{
-                  background: Colors["bg-600"],
-                  padding: "1px",
-                }}
-              >
-                {href().slice(
-                  indexOfQueryInHref(),
-                  indexOfQueryInHref() + props.query.length
-                )}
-              </span>
-              <span>
-                {href().slice(indexOfQueryInHref() + props.query.length)}
-              </span>
-            </Show>
-          )}
+          {props.item.href}
         </Show>
       </div>
       <div
@@ -460,6 +432,8 @@ function SearchLinksAndButtons() {
             "padding-inline": rem(1),
             border: "1px solid transparent",
             "border-radius": "0",
+            "border-bottom-left-radius": rem(0.25),
+            "border-bottom-right-radius": rem(0.25),
           }}
           value={query()}
           onKeyDown={(event) => {
@@ -578,12 +552,9 @@ function Root() {
       }
       const id = highlightIDs.next().value;
       const highlight = createElement("div", {
-        className: "absolute top-0 left-0 z-69420",
         styles: {
+          ...HighlightStyles,
           translate: `${elementRect.x}px ${elementRect.y}px`,
-          background: `hsl(50deg 80% 80%)`,
-          color: "black",
-          padding: "1px 2px",
         },
         text: id as string,
       });
@@ -775,7 +746,7 @@ function Root() {
     "S-g": { desc: "Scroll to bottom", fn: scrollToBottom },
     i: { desc: "Highlight inputs", fn: highlightAllInputs },
     "l f": {
-      desc: "List links & buttons",
+      desc: "Search links & buttons",
       fn: () => setShowListAndButtonList((show) => !show),
     },
     f: { desc: "Highlight links & buttons", fn: highlightLinksAndButtons },
@@ -894,7 +865,15 @@ function Root() {
     >
       <div
         ref={highlightsContainer}
-        class="fixed top-0 left-0 w-full h-full z-69420 pointer-events-none"
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          "z-index": 69420,
+          "pointer-events": "none",
+        }}
       />
       <Show when={keyInput().length > 0 || showActionHelp()}>
         <ActionsHelp
