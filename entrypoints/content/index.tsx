@@ -487,12 +487,23 @@ function SearchLinksAndButtons() {
             }
             switch (key) {
               case "ArrowDown":
-                setSelectedIndex((index) =>
-                  Math.min(index + 1, filtered().length)
-                );
+                setSelectedIndex((index) => {
+                  const next = index + 1;
+                  const last = filtered().length - 1;
+                  if (next > last) {
+                    return 0;
+                  }
+                  return next;
+                });
                 break;
               case "ArrowUp":
-                setSelectedIndex((index) => Math.max(index - 1, 0));
+                setSelectedIndex((index) => {
+                  const prev = index - 1;
+                  if (prev < 0) {
+                    return filtered().length - 1;
+                  }
+                  return prev;
+                });
                 break;
               case "Enter": {
                 const item = filtered()[selectedIndex()];
