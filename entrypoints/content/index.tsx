@@ -261,6 +261,7 @@ function ClickableItemComp(props: {
   return (
     <button
       ref={itemElement}
+      tabIndex={props.index !== 0 ? "-1" : undefined}
       style={{
         ...ButtonDefaultStyles,
         display: "grid",
@@ -445,6 +446,59 @@ function SearchLinksAndButtons() {
           "max-height": "50vh",
           "z-index": "69420",
         }}
+        onKeyDown={(event) => {
+          const { key } = event;
+          if (key !== "Escape") {
+            event.stopImmediatePropagation();
+          }
+          switch (key) {
+            case "ArrowDown":
+              setSelectedIndex((index) => {
+                const next = index + 1;
+                const last = filtered().length - 1;
+                if (next > last) {
+                  return 0;
+                }
+                return next;
+              });
+              break;
+            case "ArrowUp":
+              setSelectedIndex((index) => {
+                const prev = index - 1;
+                if (prev < 0) {
+                  return filtered().length - 1;
+                }
+                return prev;
+              });
+              break;
+            case "Enter": {
+              const item = filtered()[selectedIndex()];
+              if (item) {
+                const element = item.element;
+                if (item.href && event.ctrlKey) {
+                  handleElementInteraction(
+                    element,
+                    ElementInteractionMode.OpenInNewTab
+                  );
+                } else if (event.shiftKey) {
+                  handleElementInteraction(
+                    element,
+                    ElementInteractionMode.Focus
+                  );
+                } else {
+                  handleElementInteraction(
+                    element,
+                    ElementInteractionMode.Click
+                  );
+                }
+              }
+              context?.resetState(true);
+              break;
+            }
+            default:
+              break;
+          }
+        }}
       >
         <div
           style={{
@@ -453,6 +507,9 @@ function SearchLinksAndButtons() {
             "overflow-y": "scroll",
             "padding-block": rem(0.5),
             "padding-inline": "0",
+          }}
+          onFocusIn={() => {
+            input?.focus();
           }}
         >
           <For each={filtered()}>
@@ -480,59 +537,6 @@ function SearchLinksAndButtons() {
             "border-bottom-right-radius": rem(0.25),
           }}
           value={query()}
-          onKeyDown={(event) => {
-            const { key } = event;
-            if (key !== "Escape") {
-              event.stopImmediatePropagation();
-            }
-            switch (key) {
-              case "ArrowDown":
-                setSelectedIndex((index) => {
-                  const next = index + 1;
-                  const last = filtered().length - 1;
-                  if (next > last) {
-                    return 0;
-                  }
-                  return next;
-                });
-                break;
-              case "ArrowUp":
-                setSelectedIndex((index) => {
-                  const prev = index - 1;
-                  if (prev < 0) {
-                    return filtered().length - 1;
-                  }
-                  return prev;
-                });
-                break;
-              case "Enter": {
-                const item = filtered()[selectedIndex()];
-                if (item) {
-                  const element = item.element;
-                  if (item.href && event.ctrlKey) {
-                    handleElementInteraction(
-                      element,
-                      ElementInteractionMode.OpenInNewTab
-                    );
-                  } else if (event.shiftKey) {
-                    handleElementInteraction(
-                      element,
-                      ElementInteractionMode.Focus
-                    );
-                  } else {
-                    handleElementInteraction(
-                      element,
-                      ElementInteractionMode.Click
-                    );
-                  }
-                }
-                context?.resetState(true);
-                break;
-              }
-              default:
-                break;
-            }
-          }}
           onInput={(event) => {
             event.stopImmediatePropagation();
             setQuery(event.target.value);
