@@ -110,7 +110,7 @@ const HighlightStyles: ElementStyles = {
   background: Colors["cb-dark-50"],
   color: Colors["cb-light-90"],
   padding: rem(0.25),
-  fontSize: rem(1),
+  fontSize: rem(0.85),
   lineHeight: "1",
   fontFamily: "monospace",
   border: `${rem(0.125)} solid ${Colors["cb-dark-20"]}`,
@@ -745,7 +745,7 @@ function Root() {
     "g g": { desc: "Scroll to top", fn: scrollToTop },
     "S-g": { desc: "Scroll to bottom", fn: scrollToBottom },
     i: { desc: "Highlight inputs", fn: highlightAllInputs },
-    "l f": {
+    "s f": {
       desc: "Search links & buttons",
       fn: () => setShowListAndButtonList((show) => !show),
     },
