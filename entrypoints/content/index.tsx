@@ -1,4 +1,4 @@
-import { JSX, ParentProps } from "solid-js";
+import { ComponentProps, JSX, ParentProps } from "solid-js";
 
 const letters = Array(26)
   .fill(0)
@@ -87,7 +87,7 @@ enum ElementInteractionMode {
 
 type Actions = Record<
   string,
-  { desc: string; fn: (event: KeyboardEvent) => void }
+  { desc: string; fn: (event: KeyboardEvent | MouseEvent) => void }
 >;
 
 const Colors = {
@@ -113,7 +113,8 @@ const HighlightStyles: ElementStyles = {
   fontSize: rem(0.85),
   lineHeight: "1",
   fontFamily: "monospace",
-  boxShadow: `inset 0 -1px 0 0 ${Colors["cb-dark-20"]}`,
+  boxShadow: `inset 0 -2px 0 0 ${Colors["cb-dark-20"]}`,
+  borderRadius: rem(0.25),
 };
 
 const ButtonDefaultStyles: JSX.CSSProperties = {
@@ -130,21 +131,53 @@ const PopupStyles: JSX.CSSProperties = {
   bottom: rem(0.5),
   left: "50%",
   translate: "-50% 0",
+  display: "flex",
+  "flex-direction": "column",
   background: Colors["cb-dark-70"],
   color: Colors["cb-light-90"],
+  width: `min(95vw, ${rem(40)})`,
+  "min-height": "0",
+  "max-height": "50vh",
   "font-family": "sans-serif",
   "font-size": rem(1),
   "border-radius": rem(0.25),
   "z-index": 69420,
 };
 function Popup(props: ParentProps) {
-  return <div style={PopupStyles}>{props.children}</div>;
+  let popup: HTMLDivElement | undefined;
+
+  const context = useContext(mainContext);
+
+  const clickListener = (event: MouseEvent) => {
+    if (!popup || !(event.target instanceof Element)) {
+      return;
+    }
+    if (popup.contains(event.target)) {
+      return;
+    }
+    context?.hideAllPopups();
+  };
+
+  onMount(() => {
+    document.addEventListener("click", clickListener);
+  });
+  onCleanup(() => {
+    document.removeEventListener("click", clickListener);
+  });
+
+  return (
+    <div ref={popup} class="qs-popup" style={PopupStyles}>
+      {props.children}
+    </div>
+  );
 }
 
 const KbdStyles: JSX.CSSProperties = {
-  "box-shadow": `inset 0 -1px 0 0 ${Colors["cb-dark-20"]}`,
+  "box-shadow": `inset 0 -2px 0 0 ${Colors["cb-dark-20"]}`,
+  "border-radius": rem(0.25),
   background: Colors["cb-dark-50"],
   padding: `${rem(0.125)} ${rem(0.325)}`,
+  border: "1px solid transparent",
 };
 function Kbd(props: ParentProps) {
   return <kbd style={KbdStyles}>{props.children}</kbd>;
@@ -190,8 +223,6 @@ function ActionsHelp(props: {
           "flex-direction": "column",
           gap: rem(0.75),
           padding: rem(1),
-          width: "50vw",
-          "max-height": "50vh",
           "overflow-y": "auto",
         }}
       >
@@ -239,16 +270,25 @@ type ClickableItem = {
   href?: string;
 };
 
-function ClickableItemComp(props: {
-  item: ClickableItem;
-  index: number;
-  selectedIndex: number;
-  query: string;
-}) {
+function ClickableItemComp(
+  allProps: {
+    index: number;
+    selectedIndex: number;
+    query: string;
+    children: JSX.Element;
+  } & ComponentProps<"button">
+) {
+  const [props, rest] = splitProps(allProps, [
+    "index",
+    "selectedIndex",
+    "query",
+    "children",
+    "style",
+  ]);
+
   let itemElement: HTMLButtonElement | undefined;
 
   const [isHovered, setIsHovered] = createSignal(false);
-  const context = useContext(mainContext);
 
   createEffect(() => {
     if (props.index === props.selectedIndex && itemElement) {
@@ -278,80 +318,14 @@ function ClickableItemComp(props: {
         color: "inherit",
         "user-select": "none",
         "overflow-x": "clip",
-      }}
-      onClick={(event) => {
-        const element = props.item.element;
-        if (props.item.href && event.ctrlKey) {
-          handleElementInteraction(
-            element,
-            ElementInteractionMode.OpenInNewTab
-          );
-        } else if (event.shiftKey) {
-          handleElementInteraction(element, ElementInteractionMode.Focus);
-        } else {
-          handleElementInteraction(element, ElementInteractionMode.Click);
-        }
-        context?.resetState(true);
+        "--is-hovered": Number(isHovered()),
+        ...(typeof props.style !== "string" ? props.style || {} : {}),
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      {...rest}
     >
-      <div
-        style={{
-          "grid-column-end": "2",
-          "font-weight": "bold",
-        }}
-      >
-        {props.item.text}
-      </div>
-      <div
-        style={{
-          "grid-column-end": "2",
-          "font-size": "smaller",
-          "white-space": "nowrap",
-          "text-overflow": "ellipsis",
-          overflow: "hidden",
-        }}
-      >
-        <Show when={props.item.href} fallback={"<button>"}>
-          {props.item.href}
-        </Show>
-      </div>
-      <div
-        style={{
-          display: "flex",
-          "flex-direction": "column",
-          "align-items": "end",
-          "grid-column-start": "2",
-          "grid-row": "1 / 3",
-          gap: rem(0.25),
-          "font-size": "small",
-          "pointer-events": "none",
-          opacity:
-            props.index === props.selectedIndex || isHovered() ? "1" : "0",
-        }}
-      >
-        <div style={{ display: "flex", "align-items": "center" }}>
-          <Kbd>Enter</Kbd>{" "}
-          <span style={{ "margin-left": "4px" }}>
-            {props.item.href ? "open" : "click"}
-          </span>
-        </div>
-        <div style={{ display: "flex", "align-items": "center" }}>
-          <Kbd>Shift</Kbd>
-          <span style={{ margin: "2px" }}>+</span>
-          <Kbd>Enter</Kbd>
-          <span style={{ "margin-left": "4px" }}>focus</span>
-        </div>
-        <Show when={props.item.href}>
-          <div style={{ display: "flex", "align-items": "center" }}>
-            <Kbd>Ctrl</Kbd>
-            <span style={{ margin: "2px" }}>+</span>
-            <Kbd>Enter</Kbd>
-            <span style={{ "margin-left": "4px" }}>new tab</span>
-          </div>
-        </Show>
-      </div>
+      {props.children}
     </button>
   );
 }
@@ -392,19 +366,19 @@ function SearchLinksAndButtons() {
     items.push(item);
   }
 
-  const [selectedIndex, setSelectedIndex] = createSignal(0);
+  const [focusedIndex, setFocusedIndex] = createSignal(0);
   const [query, setQuery] = createSignal("");
 
   createEffect(() => {
     const _ = query();
-    setSelectedIndex(0);
+    setFocusedIndex(0);
   });
 
   const filtered = createMemo(() => {
     const q = query();
     if (q.length === 0) return items;
+    const lowercaseQuery = q.toLowerCase();
     return items.filter((a) => {
-      const lowercaseQuery = q.toLowerCase();
       return (
         a.text.toLowerCase().includes(lowercaseQuery) ||
         a.href?.toLowerCase().includes(lowercaseQuery)
@@ -412,26 +386,26 @@ function SearchLinksAndButtons() {
     });
   });
 
-  const clickListener = (event: MouseEvent) => {
-    if (!container || !(event.target instanceof Element)) {
-      return;
+  function handleItem(
+    event: KeyboardEvent | MouseEvent,
+    clickableItem?: ClickableItem
+  ) {
+    const item = clickableItem ?? filtered()[focusedIndex()];
+    const element = item.element;
+    if (item.href && event.ctrlKey) {
+      handleElementInteraction(element, ElementInteractionMode.OpenInNewTab);
+    } else if (event.shiftKey) {
+      handleElementInteraction(element, ElementInteractionMode.Focus);
+    } else {
+      handleElementInteraction(element, ElementInteractionMode.Click);
     }
-    if (container.contains(event.target)) {
-      return;
-    }
-    context?.hideAllPopups();
-  };
+    context?.resetState(true);
+  }
 
   onMount(() => {
     if (input) {
       input.focus();
     }
-
-    document.addEventListener("click", clickListener);
-  });
-
-  onCleanup(() => {
-    document.removeEventListener("click", clickListener);
   });
 
   return (
@@ -441,9 +415,6 @@ function SearchLinksAndButtons() {
         style={{
           display: "flex",
           "flex-direction": "column",
-          width: "65vw",
-          "max-height": "50vh",
-          "z-index": "69420",
         }}
         onKeyDown={(event) => {
           const { key } = event;
@@ -452,7 +423,7 @@ function SearchLinksAndButtons() {
           }
           switch (key) {
             case "ArrowDown":
-              setSelectedIndex((index) => {
+              setFocusedIndex((index) => {
                 const next = index + 1;
                 const last = filtered().length - 1;
                 if (next > last) {
@@ -462,7 +433,7 @@ function SearchLinksAndButtons() {
               });
               break;
             case "ArrowUp":
-              setSelectedIndex((index) => {
+              setFocusedIndex((index) => {
                 const prev = index - 1;
                 if (prev < 0) {
                   return filtered().length - 1;
@@ -471,27 +442,7 @@ function SearchLinksAndButtons() {
               });
               break;
             case "Enter": {
-              const item = filtered()[selectedIndex()];
-              if (item) {
-                const element = item.element;
-                if (item.href && event.ctrlKey) {
-                  handleElementInteraction(
-                    element,
-                    ElementInteractionMode.OpenInNewTab
-                  );
-                } else if (event.shiftKey) {
-                  handleElementInteraction(
-                    element,
-                    ElementInteractionMode.Focus
-                  );
-                } else {
-                  handleElementInteraction(
-                    element,
-                    ElementInteractionMode.Click
-                  );
-                }
-              }
-              context?.resetState(true);
+              handleItem(event);
               break;
             }
             default:
@@ -514,11 +465,204 @@ function SearchLinksAndButtons() {
           <For each={filtered()}>
             {(item, index) => (
               <ClickableItemComp
-                item={item}
                 index={index()}
-                selectedIndex={selectedIndex()}
+                selectedIndex={focusedIndex()}
                 query={query()}
-              />
+                onClick={(event) => {
+                  handleItem(event, item);
+                }}
+              >
+                <div
+                  style={{
+                    "grid-column-end": "2",
+                    "font-weight": "bold",
+                  }}
+                >
+                  {item.text}
+                </div>
+                <div
+                  style={{
+                    "grid-column-end": "2",
+                    "font-size": "smaller",
+                    "white-space": "nowrap",
+                    "text-overflow": "ellipsis",
+                    overflow: "hidden",
+                  }}
+                >
+                  <Show when={item.href} fallback={"<button>"}>
+                    {item.href}
+                  </Show>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    "flex-direction": "column",
+                    "align-items": "end",
+                    "grid-column-start": "2",
+                    "grid-row": "1 / 3",
+                    gap: rem(0.25),
+                    "font-size": "small",
+                    "pointer-events": "none",
+                    opacity:
+                      index() === focusedIndex() ? "1" : "var(--is-hovered)",
+                  }}
+                >
+                  <div style={{ display: "flex", "align-items": "center" }}>
+                    <Kbd>Enter</Kbd>{" "}
+                    <span style={{ "margin-left": "4px" }}>
+                      {item.href ? "open" : "click"}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", "align-items": "center" }}>
+                    <Kbd>Shift</Kbd>
+                    <span style={{ margin: "2px" }}>+</span>
+                    <Kbd>Enter</Kbd>
+                    <span style={{ "margin-left": "4px" }}>focus</span>
+                  </div>
+                  <Show when={item.href}>
+                    <div style={{ display: "flex", "align-items": "center" }}>
+                      <Kbd>Ctrl</Kbd>
+                      <span style={{ margin: "2px" }}>+</span>
+                      <Kbd>Enter</Kbd>
+                      <span style={{ "margin-left": "4px" }}>new tab</span>
+                    </div>
+                  </Show>
+                </div>
+              </ClickableItemComp>
+            )}
+          </For>
+        </div>
+        <input
+          ref={input}
+          class="qs-input"
+          style={{
+            background: "inherit",
+            color: "inherit",
+            "padding-block": rem(0.5),
+            "padding-inline": rem(1),
+            border: "1px solid transparent",
+            "border-radius": "0",
+            "border-bottom-left-radius": rem(0.25),
+            "border-bottom-right-radius": rem(0.25),
+          }}
+          value={query()}
+          onInput={(event) => {
+            event.stopImmediatePropagation();
+            setQuery(event.target.value);
+          }}
+        />
+      </div>
+    </Popup>
+  );
+}
+
+type Unpacked<T> = T extends (infer U)[] ? U : T;
+
+function CommandPalette(props: { actions: Actions }) {
+  const actionsList = Object.entries(props.actions);
+
+  let input: HTMLInputElement | undefined;
+
+  const context = useContext(mainContext);
+
+  const [focusedIndex, setFocusedIndex] = createSignal(0);
+  const [query, setQuery] = createSignal("");
+
+  createEffect(() => {
+    const _ = query();
+    setFocusedIndex(0);
+  });
+
+  const filtered = createMemo(() => {
+    const q = query();
+    if (q.length === 0) return actionsList;
+    const lowercaseQuery = q.toLowerCase();
+    return actionsList.filter(([key, { desc }]) => {
+      return (
+        key.toLowerCase().includes(lowercaseQuery) ||
+        desc.toLowerCase().includes(lowercaseQuery)
+      );
+    });
+  });
+
+  function handleItem(
+    event: KeyboardEvent | MouseEvent,
+    item?: Unpacked<typeof actionsList>
+  ) {
+    context?.resetState(true);
+    const i = item ?? filtered()[focusedIndex()];
+    i[1].fn(event);
+  }
+
+  onMount(() => {
+    input?.focus();
+  });
+
+  return (
+    <Popup>
+      <div
+        style={{
+          display: "flex",
+          "flex-direction": "column",
+        }}
+        onKeyDown={(event) => {
+          const { key } = event;
+          if (key !== "Escape") {
+            event.stopImmediatePropagation();
+          }
+          switch (key) {
+            case "ArrowDown":
+              setFocusedIndex((index) => {
+                const next = index + 1;
+                const last = filtered().length - 1;
+                if (next > last) {
+                  return 0;
+                }
+                return next;
+              });
+              break;
+            case "ArrowUp":
+              setFocusedIndex((index) => {
+                const prev = index - 1;
+                if (prev < 0) {
+                  return filtered().length - 1;
+                }
+                return prev;
+              });
+              break;
+            case "Enter": {
+              handleItem(event);
+              break;
+            }
+            default:
+              break;
+          }
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            "flex-direction": "column",
+            "overflow-y": "scroll",
+            "padding-block": rem(0.5),
+            "padding-inline": "0",
+          }}
+        >
+          <For each={filtered()}>
+            {(action, index) => (
+              <ClickableItemComp
+                index={index()}
+                selectedIndex={focusedIndex()}
+                query={query()}
+                onClick={(event) => {
+                  handleItem(event, action);
+                }}
+              >
+                <div>
+                  <Kbd>{action[0]}</Kbd>
+                </div>
+                <div>{action[1].desc}</div>
+              </ClickableItemComp>
             )}
           </For>
         </div>
@@ -568,10 +712,12 @@ function Root() {
 
   const [showActionHelp, setShowActionHelp] = createSignal(false);
   const [showLinkAndButtonList, setShowListAndButtonList] = createSignal(false);
+  const [showCommandPalette, setShowCommandPalette] = createSignal(false);
 
   function hideAllPopups() {
     setShowActionHelp(false);
     setShowListAndButtonList(false);
+    setShowCommandPalette(false);
   }
 
   const idToHighlightMap = new Map<string, HTMLElement>();
@@ -790,6 +936,10 @@ function Root() {
     setIsPassthrough((is) => !is);
   }
 
+  function toggleCommandPalette() {
+    setShowCommandPalette(true);
+  }
+
   const actions: Actions = {
     k: { desc: "Scroll up", fn: scrollUp },
     j: { desc: "Scroll down", fn: scrollDown },
@@ -798,8 +948,12 @@ function Root() {
     "g g": { desc: "Scroll to top", fn: scrollToTop },
     "S-g": { desc: "Scroll to bottom", fn: scrollToBottom },
     i: { desc: "Highlight inputs", fn: highlightAllInputs },
-    "s f": {
-      desc: "Search links & buttons",
+    "l f": {
+      desc: "List all links & buttons",
+      fn: () => setShowListAndButtonList((show) => !show),
+    },
+    "l v": {
+      desc: "List all videos",
       fn: () => setShowListAndButtonList((show) => !show),
     },
     f: { desc: "Highlight links & buttons", fn: highlightLinksAndButtons },
@@ -809,6 +963,7 @@ function Root() {
     },
     "S-?": { desc: "Show help", fn: () => setShowActionHelp((show) => !show) },
     p: { desc: "Toggle passthrough", fn: togglePassthrough },
+    "C-p": { desc: "Show command palette", fn: toggleCommandPalette },
   };
 
   const actionKeyCombinations = Object.keys(actions);
@@ -856,7 +1011,6 @@ function Root() {
       element?.closest('[contenteditable="true"]');
     if (key === "Escape" || isInputElement) {
       if (key === "Escape") {
-        event.preventDefault();
         resetState(true);
       }
 
@@ -968,12 +1122,19 @@ function Root() {
           Passthrough
         </div>
       </Show>
+      <Show when={showCommandPalette()}>
+        <CommandPalette actions={actions} />
+      </Show>
       <style>{`
-.qs-input {
-  outline: 0;
-}
-.qs-input:focus-visible {
-  outline: 2px solid cornflowerblue;
+.qs-input { outline: 0; }
+.qs-input:focus-visible { outline: 2px solid cornflowerblue; }
+.qs-popup > * { min-height: 0; }
+.qs-popup ::-webkit-scrollbar { width: 16px; }
+.qs-popup ::-webkit-scrollbar-thumb {
+  background: ${Colors["cb"]};
+  border-radius: ${rem(0.5)};
+  border: 4px solid rgba(0,0,0,0);
+  background-clip: padding-box;
 }
 `}</style>
     </mainContext.Provider>
