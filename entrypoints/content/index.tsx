@@ -274,14 +274,12 @@ function ClickableItemComp(
   allProps: {
     index: number;
     selectedIndex: number;
-    query: string;
     children: JSX.Element;
   } & ComponentProps<"button">
 ) {
   const [props, rest] = splitProps(allProps, [
     "index",
     "selectedIndex",
-    "query",
     "children",
     "style",
   ]);
@@ -330,10 +328,121 @@ function ClickableItemComp(
   );
 }
 
-function SearchLinksAndButtons() {
-  let container: HTMLDivElement | undefined;
+function ListSearch<Item extends unknown>(props: {
+  items: Item[];
+  filter: (item: Item, lowercaseQuery: string) => boolean;
+  itemRenderFn: (item: Item, isFocused: boolean) => JSX.Element;
+  handleSelect: (item: Item, event: KeyboardEvent | MouseEvent) => void;
+}) {
   let input: HTMLInputElement | undefined;
 
+  onMount(() => {
+    input?.focus();
+  });
+
+  const [focusedIndex, setFocusedIndex] = createSignal(0);
+  const [query, setQuery] = createSignal("");
+
+  createEffect(() => {
+    const _ = query();
+    setFocusedIndex(0);
+  });
+
+  const filtered = createMemo(() => {
+    const q = query();
+    if (q.length === 0) return props.items;
+    const lowercaseQuery = q.toLowerCase();
+    return props.items.filter((item) => props.filter(item, lowercaseQuery));
+  });
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        "flex-direction": "column",
+      }}
+      onKeyDown={(event) => {
+        const { key } = event;
+        if (key !== "Escape") {
+          event.stopImmediatePropagation();
+        }
+        switch (key) {
+          case "ArrowDown":
+            setFocusedIndex((index) => {
+              const next = index + 1;
+              const last = filtered().length - 1;
+              if (next > last) {
+                return 0;
+              }
+              return next;
+            });
+            break;
+          case "ArrowUp":
+            setFocusedIndex((index) => {
+              const prev = index - 1;
+              if (prev < 0) {
+                return filtered().length - 1;
+              }
+              return prev;
+            });
+            break;
+          case "Enter": {
+            const item = filtered()[focusedIndex()];
+            if (item) {
+              props.handleSelect(item, event);
+            }
+            break;
+          }
+          default:
+            break;
+        }
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          "flex-direction": "column",
+          "overflow-y": "scroll",
+          "padding-block": rem(0.5),
+          "padding-inline": "0",
+        }}
+      >
+        <For each={filtered()}>
+          {(item, index) => (
+            <ClickableItemComp
+              index={index()}
+              selectedIndex={focusedIndex()}
+              onClick={(event) => props.handleSelect(item, event)}
+            >
+              {props.itemRenderFn(item, index() === focusedIndex())}
+            </ClickableItemComp>
+          )}
+        </For>
+      </div>
+      <input
+        ref={input}
+        class="qs-input"
+        style={{
+          background: "inherit",
+          color: "inherit",
+          "padding-block": rem(0.5),
+          "padding-inline": rem(1),
+          border: "1px solid transparent",
+          "border-radius": "0",
+          "border-bottom-left-radius": rem(0.25),
+          "border-bottom-right-radius": rem(0.25),
+        }}
+        value={query()}
+        onInput={(event) => {
+          event.stopImmediatePropagation();
+          setQuery(event.target.value);
+        }}
+      />
+    </div>
+  );
+}
+
+function SearchLinksAndButtons() {
   const context = useContext(mainContext);
 
   const items: ClickableItem[] = [];
@@ -366,31 +475,11 @@ function SearchLinksAndButtons() {
     items.push(item);
   }
 
-  const [focusedIndex, setFocusedIndex] = createSignal(0);
-  const [query, setQuery] = createSignal("");
-
-  createEffect(() => {
-    const _ = query();
-    setFocusedIndex(0);
-  });
-
-  const filtered = createMemo(() => {
-    const q = query();
-    if (q.length === 0) return items;
-    const lowercaseQuery = q.toLowerCase();
-    return items.filter((a) => {
-      return (
-        a.text.toLowerCase().includes(lowercaseQuery) ||
-        a.href?.toLowerCase().includes(lowercaseQuery)
-      );
-    });
-  });
-
-  function handleItem(
-    event: KeyboardEvent | MouseEvent,
-    clickableItem?: ClickableItem
+  function handleSelect(
+    item: ClickableItem,
+    event: KeyboardEvent | MouseEvent
   ) {
-    const item = clickableItem ?? filtered()[focusedIndex()];
+    context?.resetState(true);
     const element = item.element;
     if (item.href && event.ctrlKey) {
       handleElementInteraction(element, ElementInteractionMode.OpenInNewTab);
@@ -399,293 +488,144 @@ function SearchLinksAndButtons() {
     } else {
       handleElementInteraction(element, ElementInteractionMode.Click);
     }
-    context?.resetState(true);
   }
-
-  onMount(() => {
-    if (input) {
-      input.focus();
-    }
-  });
 
   return (
     <Popup>
-      <div
-        ref={container}
-        style={{
-          display: "flex",
-          "flex-direction": "column",
+      <ListSearch
+        items={items}
+        filter={(a, lowercaseQuery) => {
+          return (
+            a.text.toLowerCase().includes(lowercaseQuery) ||
+            a.href?.toLowerCase().includes(lowercaseQuery) ||
+            false
+          );
         }}
-        onKeyDown={(event) => {
-          const { key } = event;
-          if (key !== "Escape") {
-            event.stopImmediatePropagation();
-          }
-          switch (key) {
-            case "ArrowDown":
-              setFocusedIndex((index) => {
-                const next = index + 1;
-                const last = filtered().length - 1;
-                if (next > last) {
-                  return 0;
-                }
-                return next;
-              });
-              break;
-            case "ArrowUp":
-              setFocusedIndex((index) => {
-                const prev = index - 1;
-                if (prev < 0) {
-                  return filtered().length - 1;
-                }
-                return prev;
-              });
-              break;
-            case "Enter": {
-              handleItem(event);
-              break;
-            }
-            default:
-              break;
-          }
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            "flex-direction": "column",
-            "overflow-y": "scroll",
-            "padding-block": rem(0.5),
-            "padding-inline": "0",
-          }}
-          onFocusIn={() => {
-            input?.focus();
-          }}
-        >
-          <For each={filtered()}>
-            {(item, index) => (
-              <ClickableItemComp
-                index={index()}
-                selectedIndex={focusedIndex()}
-                query={query()}
-                onClick={(event) => {
-                  handleItem(event, item);
-                }}
-              >
-                <div
-                  style={{
-                    "grid-column-end": "2",
-                    "font-weight": "bold",
-                  }}
-                >
-                  {item.text}
+        itemRenderFn={(item, isFocused) => (
+          <>
+            <div
+              style={{
+                "grid-column-end": "2",
+                "font-weight": "bold",
+              }}
+            >
+              {item.text}
+            </div>
+            <div
+              style={{
+                "grid-column-end": "2",
+                "font-size": "smaller",
+                "white-space": "nowrap",
+                "text-overflow": "ellipsis",
+                overflow: "hidden",
+              }}
+            >
+              <Show when={item.href} fallback={"<button>"}>
+                {item.href}
+              </Show>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                "flex-direction": "column",
+                "align-items": "end",
+                "grid-column-start": "2",
+                "grid-row": "1 / 3",
+                gap: rem(0.25),
+                "font-size": "small",
+                "pointer-events": "none",
+                opacity: isFocused ? "1" : "var(--is-hovered)",
+              }}
+            >
+              <div style={{ display: "flex", "align-items": "center" }}>
+                <Kbd>Enter</Kbd>{" "}
+                <span style={{ "margin-left": "4px" }}>
+                  {item.href ? "open" : "click"}
+                </span>
+              </div>
+              <div style={{ display: "flex", "align-items": "center" }}>
+                <Kbd>Shift</Kbd>
+                <span style={{ margin: "2px" }}>+</span>
+                <Kbd>Enter</Kbd>
+                <span style={{ "margin-left": "4px" }}>focus</span>
+              </div>
+              <Show when={item.href}>
+                <div style={{ display: "flex", "align-items": "center" }}>
+                  <Kbd>Ctrl</Kbd>
+                  <span style={{ margin: "2px" }}>+</span>
+                  <Kbd>Enter</Kbd>
+                  <span style={{ "margin-left": "4px" }}>new tab</span>
                 </div>
-                <div
-                  style={{
-                    "grid-column-end": "2",
-                    "font-size": "smaller",
-                    "white-space": "nowrap",
-                    "text-overflow": "ellipsis",
-                    overflow: "hidden",
-                  }}
-                >
-                  <Show when={item.href} fallback={"<button>"}>
-                    {item.href}
-                  </Show>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    "flex-direction": "column",
-                    "align-items": "end",
-                    "grid-column-start": "2",
-                    "grid-row": "1 / 3",
-                    gap: rem(0.25),
-                    "font-size": "small",
-                    "pointer-events": "none",
-                    opacity:
-                      index() === focusedIndex() ? "1" : "var(--is-hovered)",
-                  }}
-                >
-                  <div style={{ display: "flex", "align-items": "center" }}>
-                    <Kbd>Enter</Kbd>{" "}
-                    <span style={{ "margin-left": "4px" }}>
-                      {item.href ? "open" : "click"}
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", "align-items": "center" }}>
-                    <Kbd>Shift</Kbd>
-                    <span style={{ margin: "2px" }}>+</span>
-                    <Kbd>Enter</Kbd>
-                    <span style={{ "margin-left": "4px" }}>focus</span>
-                  </div>
-                  <Show when={item.href}>
-                    <div style={{ display: "flex", "align-items": "center" }}>
-                      <Kbd>Ctrl</Kbd>
-                      <span style={{ margin: "2px" }}>+</span>
-                      <Kbd>Enter</Kbd>
-                      <span style={{ "margin-left": "4px" }}>new tab</span>
-                    </div>
-                  </Show>
-                </div>
-              </ClickableItemComp>
-            )}
-          </For>
-        </div>
-        <input
-          ref={input}
-          class="qs-input"
-          style={{
-            background: "inherit",
-            color: "inherit",
-            "padding-block": rem(0.5),
-            "padding-inline": rem(1),
-            border: "1px solid transparent",
-            "border-radius": "0",
-            "border-bottom-left-radius": rem(0.25),
-            "border-bottom-right-radius": rem(0.25),
-          }}
-          value={query()}
-          onInput={(event) => {
-            event.stopImmediatePropagation();
-            setQuery(event.target.value);
-          }}
-        />
-      </div>
+              </Show>
+            </div>
+          </>
+        )}
+        handleSelect={handleSelect}
+      />
     </Popup>
   );
 }
 
-type Unpacked<T> = T extends (infer U)[] ? U : T;
+function VideoList() {
+  const context = useContext(mainContext);
+
+  const videos: HTMLVideoElement[] = [];
+  for (const video of document.querySelectorAll("video")) {
+    videos.push(video);
+  }
+
+  function handleSelect(
+    item: HTMLVideoElement,
+    event: KeyboardEvent | MouseEvent
+  ) {
+    context?.resetState(true);
+  }
+
+  return (
+    <Popup>
+      <ListSearch
+        items={videos}
+        itemRenderFn={(item) => <>{item.src}</>}
+        filter={() => true}
+        handleSelect={handleSelect}
+      />
+    </Popup>
+  );
+}
 
 function CommandPalette(props: { actions: Actions }) {
   const actionsList = Object.entries(props.actions);
 
-  let input: HTMLInputElement | undefined;
-
   const context = useContext(mainContext);
 
-  const [focusedIndex, setFocusedIndex] = createSignal(0);
-  const [query, setQuery] = createSignal("");
-
-  createEffect(() => {
-    const _ = query();
-    setFocusedIndex(0);
-  });
-
-  const filtered = createMemo(() => {
-    const q = query();
-    if (q.length === 0) return actionsList;
-    const lowercaseQuery = q.toLowerCase();
-    return actionsList.filter(([key, { desc }]) => {
-      return (
-        key.toLowerCase().includes(lowercaseQuery) ||
-        desc.toLowerCase().includes(lowercaseQuery)
-      );
-    });
-  });
-
-  function handleItem(
-    event: KeyboardEvent | MouseEvent,
-    item?: Unpacked<typeof actionsList>
+  function handleSelect(
+    item: (typeof actionsList)[number],
+    event: KeyboardEvent | MouseEvent
   ) {
     context?.resetState(true);
-    const i = item ?? filtered()[focusedIndex()];
-    i[1].fn(event);
+    item[1].fn(event);
   }
-
-  onMount(() => {
-    input?.focus();
-  });
 
   return (
     <Popup>
-      <div
-        style={{
-          display: "flex",
-          "flex-direction": "column",
+      <ListSearch
+        items={actionsList}
+        itemRenderFn={(item) => (
+          <>
+            <div>
+              <Kbd>{item[0]}</Kbd>
+            </div>
+            <div>{item[1].desc}</div>
+          </>
+        )}
+        filter={([key, { desc }], lowercaseQuery) => {
+          return (
+            key.toLowerCase().includes(lowercaseQuery) ||
+            desc.toLowerCase().includes(lowercaseQuery)
+          );
         }}
-        onKeyDown={(event) => {
-          const { key } = event;
-          if (key !== "Escape") {
-            event.stopImmediatePropagation();
-          }
-          switch (key) {
-            case "ArrowDown":
-              setFocusedIndex((index) => {
-                const next = index + 1;
-                const last = filtered().length - 1;
-                if (next > last) {
-                  return 0;
-                }
-                return next;
-              });
-              break;
-            case "ArrowUp":
-              setFocusedIndex((index) => {
-                const prev = index - 1;
-                if (prev < 0) {
-                  return filtered().length - 1;
-                }
-                return prev;
-              });
-              break;
-            case "Enter": {
-              handleItem(event);
-              break;
-            }
-            default:
-              break;
-          }
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            "flex-direction": "column",
-            "overflow-y": "scroll",
-            "padding-block": rem(0.5),
-            "padding-inline": "0",
-          }}
-        >
-          <For each={filtered()}>
-            {(action, index) => (
-              <ClickableItemComp
-                index={index()}
-                selectedIndex={focusedIndex()}
-                query={query()}
-                onClick={(event) => {
-                  handleItem(event, action);
-                }}
-              >
-                <div>
-                  <Kbd>{action[0]}</Kbd>
-                </div>
-                <div>{action[1].desc}</div>
-              </ClickableItemComp>
-            )}
-          </For>
-        </div>
-        <input
-          ref={input}
-          class="qs-input"
-          style={{
-            background: "inherit",
-            color: "inherit",
-            "padding-block": rem(0.5),
-            "padding-inline": rem(1),
-            border: "1px solid transparent",
-            "border-radius": "0",
-            "border-bottom-left-radius": rem(0.25),
-            "border-bottom-right-radius": rem(0.25),
-          }}
-          value={query()}
-          onInput={(event) => {
-            event.stopImmediatePropagation();
-            setQuery(event.target.value);
-          }}
-        />
-      </div>
+        handleSelect={handleSelect}
+      />
     </Popup>
   );
 }
@@ -712,11 +652,13 @@ function Root() {
 
   const [showActionHelp, setShowActionHelp] = createSignal(false);
   const [showLinkAndButtonList, setShowListAndButtonList] = createSignal(false);
+  const [showVideoList, setShowVideoList] = createSignal(false);
   const [showCommandPalette, setShowCommandPalette] = createSignal(false);
 
   function hideAllPopups() {
     setShowActionHelp(false);
     setShowListAndButtonList(false);
+    setShowVideoList(false);
     setShowCommandPalette(false);
   }
 
@@ -954,7 +896,10 @@ function Root() {
     },
     "l v": {
       desc: "List all videos",
-      fn: () => setShowListAndButtonList((show) => !show),
+      fn: () => {
+        /** @TODO */
+        setShowVideoList((show) => !show);
+      },
     },
     f: { desc: "Highlight links & buttons", fn: highlightLinksAndButtons },
     "g f": {
@@ -1110,6 +1055,9 @@ function Root() {
       </Show>
       <Show when={showLinkAndButtonList()}>
         <SearchLinksAndButtons />
+      </Show>
+      <Show when={showVideoList()}>
+        <VideoList />
       </Show>
       <Show when={isPassthrough()}>
         <div
