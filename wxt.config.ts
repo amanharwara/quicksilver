@@ -2,7 +2,10 @@ import { defineConfig } from "wxt";
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
-  extensionApi: "chrome",
+  manifest: {
+    permissions: ["tabs"],
+    host_permissions: ["http://*/*", "https://*/*"],
+  },
   modules: ["@wxt-dev/module-solid"],
   runner: {
     startUrls: ["http://localhost:5500/"],

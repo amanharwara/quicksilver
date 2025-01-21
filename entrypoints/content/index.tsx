@@ -1,4 +1,6 @@
 import { ComponentProps, JSX, ParentProps } from "solid-js";
+import { Tabs } from "wxt/browser";
+import { Message } from "../../Message";
 
 const letters = Array(26)
   .fill(0)
@@ -331,7 +333,7 @@ function ClickableItemComp(
 function ListSearch<Item extends unknown>(props: {
   items: Item[];
   filter: (item: Item, lowercaseQuery: string) => boolean;
-  itemRenderFn: (item: Item, isFocused: boolean) => JSX.Element;
+  itemRenderFn: (item: Item, isFocused: boolean, index: number) => JSX.Element;
   handleSelect: (item: Item, event: KeyboardEvent | MouseEvent) => void;
 }) {
   let input: HTMLInputElement | undefined;
@@ -414,7 +416,7 @@ function ListSearch<Item extends unknown>(props: {
               selectedIndex={focusedIndex()}
               onClick={(event) => props.handleSelect(item, event)}
             >
-              {props.itemRenderFn(item, index() === focusedIndex())}
+              {props.itemRenderFn(item, index() === focusedIndex(), index())}
             </ClickableItemComp>
           )}
         </For>
@@ -593,6 +595,51 @@ function VideoList() {
   );
 }
 
+function TabList() {
+  const [tabs] = createResource(async function getAllTabs() {
+    const response = (await browser.runtime.sendMessage({
+      type: "get-all-tabs",
+    } satisfies Message)) as Message;
+    if (!Array.isArray(response)) {
+      throw new Error("Did not receive correct response");
+    }
+    return response as Tabs.Tab[];
+  });
+
+  const context = useContext(mainContext);
+
+  return (
+    <Show when={tabs()}>
+      <Popup>
+        <ListSearch
+          items={tabs()!}
+          itemRenderFn={(tab) => (
+            <>
+              <div style={{ "font-weight": "bold" }}>{tab.title}</div>
+              <div style={{ "font-size": "smaller", "grid-row": "2" }}>
+                {tab.url}
+              </div>
+            </>
+          )}
+          filter={(item, lowercaseQuery) =>
+            Boolean(
+              item.title?.toLowerCase().includes(lowercaseQuery) ||
+                item.url?.toLowerCase().includes(lowercaseQuery)
+            )
+          }
+          handleSelect={function selectTab(item) {
+            context?.resetState(true);
+            browser.runtime.sendMessage({
+              type: "activate-tab",
+              tabId: item.id,
+            } satisfies Message);
+          }}
+        />
+      </Popup>
+    </Show>
+  );
+}
+
 function CommandPalette(props: { actions: Actions }) {
   const actionsList = Object.entries(props.actions);
 
@@ -653,12 +700,14 @@ function Root() {
   const [showActionHelp, setShowActionHelp] = createSignal(false);
   const [showLinkAndButtonList, setShowListAndButtonList] = createSignal(false);
   const [showVideoList, setShowVideoList] = createSignal(false);
+  const [showTabList, setShowTabList] = createSignal(false);
   const [showCommandPalette, setShowCommandPalette] = createSignal(false);
 
   function hideAllPopups() {
     setShowActionHelp(false);
     setShowListAndButtonList(false);
     setShowVideoList(false);
+    setShowTabList(false);
     setShowCommandPalette(false);
   }
 
@@ -896,10 +945,11 @@ function Root() {
     },
     "l v": {
       desc: "List all videos",
-      fn: () => {
-        /** @TODO */
-        setShowVideoList((show) => !show);
-      },
+      fn: () => setShowVideoList((show) => !show),
+    },
+    "l t": {
+      desc: "List all tabs",
+      fn: () => setShowTabList((show) => !show),
     },
     f: { desc: "Highlight links & buttons", fn: highlightLinksAndButtons },
     "g f": {
@@ -1058,6 +1108,9 @@ function Root() {
       </Show>
       <Show when={showVideoList()}>
         <VideoList />
+      </Show>
+      <Show when={showTabList()}>
+        <TabList />
       </Show>
       <Show when={isPassthrough()}>
         <div
