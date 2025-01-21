@@ -7,4 +7,8 @@ export type Message =
   | {
       type: "activate-tab";
       tabId: Tabs.Tab["id"];
+    }
+  | {
+      type: "close-tab";
+      tabId: Tabs.Tab["id"];
     };

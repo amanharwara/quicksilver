@@ -335,6 +335,7 @@ function ListSearch<Item extends unknown>(props: {
   filter: (item: Item, lowercaseQuery: string) => boolean;
   itemRenderFn: (item: Item, isFocused: boolean, index: number) => JSX.Element;
   handleSelect: (item: Item, event: KeyboardEvent | MouseEvent) => void;
+  handleKeyDown?: (item: Item, event: KeyboardEvent) => boolean;
 }) {
   let input: HTMLInputElement | undefined;
 
@@ -364,6 +365,10 @@ function ListSearch<Item extends unknown>(props: {
         "flex-direction": "column",
       }}
       onKeyDown={(event) => {
+        const item = filtered()[focusedIndex()];
+        if (props.handleKeyDown?.(item, event)) {
+          return;
+        }
         const { key } = event;
         if (key !== "Escape") {
           event.stopImmediatePropagation();
@@ -389,7 +394,6 @@ function ListSearch<Item extends unknown>(props: {
             });
             break;
           case "Enter": {
-            const item = filtered()[focusedIndex()];
             if (item) {
               props.handleSelect(item, event);
             }
@@ -627,6 +631,17 @@ function TabList() {
                 item.url?.toLowerCase().includes(lowercaseQuery)
             )
           }
+          handleKeyDown={(item, event) => {
+            if (event.key === "Backspace") {
+              browser.runtime.sendMessage({
+                type: "close-tab",
+                tabId: item.id,
+              } satisfies Message);
+              context?.resetState(true);
+              return true;
+            }
+            return false;
+          }}
           handleSelect={function selectTab(item) {
             context?.resetState(true);
             browser.runtime.sendMessage({

@@ -15,8 +15,10 @@ export default defineBackground(() => {
       }
     }
     if (message.type === "activate-tab" && message.tabId !== undefined) {
-      console.log(browser.tabs);
       browser.tabs.update(message.tabId, { active: true });
+    }
+    if (message.type === "close-tab" && message.tabId !== undefined) {
+      browser.tabs.remove(message.tabId);
     }
   });
 });
