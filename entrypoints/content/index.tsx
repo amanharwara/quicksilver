@@ -661,7 +661,15 @@ function TabList() {
           itemContent={(tab) => (
             <>
               <div style={{ "font-weight": "bold" }}>{tab.title}</div>
-              <div style={{ "font-size": "smaller", "grid-row": "2" }}>
+              <div
+                style={{
+                  "font-size": "smaller",
+                  "grid-row": "2",
+                  "white-space": "nowrap",
+                  overflow: "hidden",
+                  "text-overflow": "ellipsis",
+                }}
+              >
                 {tab.url}
               </div>
             </>
