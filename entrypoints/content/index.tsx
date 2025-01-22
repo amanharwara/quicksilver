@@ -145,7 +145,7 @@ const PopupStyles: JSX.CSSProperties = {
   "border-radius": rem(0.25),
   "z-index": 69420,
 };
-function Popup(props: ParentProps) {
+function Popup(props: ComponentProps<"div">) {
   let popup: HTMLDivElement | undefined;
 
   const context = useContext(mainContext);
@@ -168,7 +168,15 @@ function Popup(props: ParentProps) {
   });
 
   return (
-    <div ref={popup} class="qs-popup" style={PopupStyles}>
+    <div
+      {...props}
+      ref={popup}
+      class="qs-popup"
+      style={{
+        ...PopupStyles,
+        ...(typeof props.style === "object" ? props.style : {}),
+      }}
+    >
       {props.children}
     </div>
   );
@@ -275,13 +283,13 @@ type ClickableItem = {
 function ClickableItemComp(
   allProps: {
     index: number;
-    selectedIndex: number;
+    focusedIndex: number;
     children: JSX.Element;
   } & ComponentProps<"button">
 ) {
   const [props, rest] = splitProps(allProps, [
     "index",
-    "selectedIndex",
+    "focusedIndex",
     "children",
     "style",
   ]);
@@ -290,8 +298,10 @@ function ClickableItemComp(
 
   const [isHovered, setIsHovered] = createSignal(false);
 
+  const isFocused = () => props.index === props.focusedIndex;
+
   createEffect(() => {
-    if (props.index === props.selectedIndex && itemElement) {
+    if (isFocused() && itemElement) {
       itemElement.scrollIntoView({
         block: "nearest",
       });
@@ -312,9 +322,7 @@ function ClickableItemComp(
         "padding-block": rem(0.75),
         "padding-inline": rem(1.25),
         background:
-          props.index === props.selectedIndex || isHovered()
-            ? Colors["cb-dark-60"]
-            : "transparent",
+          isFocused() || isHovered() ? Colors["cb-dark-60"] : "transparent",
         color: "inherit",
         "user-select": "none",
         "overflow-x": "clip",
@@ -333,7 +341,8 @@ function ClickableItemComp(
 function ListSearch<Item extends unknown>(props: {
   items: Item[];
   filter: (item: Item, lowercaseQuery: string) => boolean;
-  itemRenderFn: (item: Item, isFocused: boolean, index: number) => JSX.Element;
+  itemContent: (item: Item, isFocused: boolean, index: number) => JSX.Element;
+  itemProps?: ComponentProps<"button">;
   handleSelect: (item: Item, event: KeyboardEvent | MouseEvent) => void;
   handleKeyDown?: (item: Item, event: KeyboardEvent) => boolean;
 }) {
@@ -416,11 +425,12 @@ function ListSearch<Item extends unknown>(props: {
         <For each={filtered()}>
           {(item, index) => (
             <ClickableItemComp
+              {...(props.itemProps ? props.itemProps : {})}
               index={index()}
-              selectedIndex={focusedIndex()}
+              focusedIndex={focusedIndex()}
               onClick={(event) => props.handleSelect(item, event)}
             >
-              {props.itemRenderFn(item, index() === focusedIndex(), index())}
+              {props.itemContent(item, index() === focusedIndex(), index())}
             </ClickableItemComp>
           )}
         </For>
@@ -507,7 +517,7 @@ function SearchLinksAndButtons() {
             false
           );
         }}
-        itemRenderFn={(item, isFocused) => (
+        itemContent={(item, isFocused) => (
           <>
             <div
               style={{
@@ -591,7 +601,7 @@ function VideoList() {
     <Popup>
       <ListSearch
         items={videos}
-        itemRenderFn={(item) => <>{item.src}</>}
+        itemContent={(item) => <>{item.src}</>}
         filter={() => true}
         handleSelect={handleSelect}
       />
@@ -612,12 +622,43 @@ function TabList() {
 
   const context = useContext(mainContext);
 
+  const [selectedTab, setSelectedTab] = createSignal<Tabs.Tab>();
+
+  const tabActions = [
+    {
+      name: "Open tab",
+      fn: function openTab() {
+        const tab = selectedTab();
+        if (!tab) return;
+        browser.runtime.sendMessage({
+          type: "activate-tab",
+          tabId: tab.id,
+        } satisfies Message);
+      },
+    },
+    {
+      name: "Close tab",
+      fn: function closeTab() {
+        const tab = selectedTab();
+        if (!tab) return;
+        browser.runtime.sendMessage({
+          type: "close-tab",
+          tabId: tab.id,
+        } satisfies Message);
+      },
+    },
+  ];
+
   return (
     <Show when={tabs()}>
-      <Popup>
+      <Popup
+        style={{
+          opacity: !!selectedTab() ? "0" : undefined,
+        }}
+      >
         <ListSearch
           items={tabs()!}
-          itemRenderFn={(tab) => (
+          itemContent={(tab) => (
             <>
               <div style={{ "font-weight": "bold" }}>{tab.title}</div>
               <div style={{ "font-size": "smaller", "grid-row": "2" }}>
@@ -631,26 +672,31 @@ function TabList() {
                 item.url?.toLowerCase().includes(lowercaseQuery)
             )
           }
-          handleKeyDown={(item, event) => {
-            if (event.key === "Backspace") {
-              browser.runtime.sendMessage({
-                type: "close-tab",
-                tabId: item.id,
-              } satisfies Message);
-              context?.resetState(true);
-              return true;
-            }
-            return false;
-          }}
-          handleSelect={function selectTab(item) {
-            context?.resetState(true);
-            browser.runtime.sendMessage({
-              type: "activate-tab",
-              tabId: item.id,
-            } satisfies Message);
+          handleSelect={function selectTab(item, event) {
+            setSelectedTab(item);
           }}
         />
       </Popup>
+      <Show when={selectedTab()}>
+        <Popup>
+          <ListSearch
+            items={tabActions}
+            itemProps={{
+              style: {
+                "grid-template-rows": "1fr",
+              },
+            }}
+            itemContent={(item) => (
+              <span style={{ "font-weight": "bold" }}>{item.name}</span>
+            )}
+            filter={({ name }, lq) => name.toLowerCase().includes(lq)}
+            handleSelect={(action) => {
+              context?.resetState(true);
+              action.fn();
+            }}
+          />
+        </Popup>
+      </Show>
     </Show>
   );
 }
@@ -672,7 +718,7 @@ function CommandPalette(props: { actions: Actions }) {
     <Popup>
       <ListSearch
         items={actionsList}
-        itemRenderFn={(item) => (
+        itemContent={(item) => (
           <>
             <div>
               <Kbd>{item[0]}</Kbd>
