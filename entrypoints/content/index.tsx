@@ -853,7 +853,12 @@ function Root() {
     }
     const element = highlightToElementMap.get(highlight);
     if (element) {
-      handleElementInteraction(element, state.highlightInteractionMode);
+      handleElementInteraction(
+        element,
+        element instanceof HTMLInputElement
+          ? ElementInteractionMode.Focus
+          : state.highlightInteractionMode
+      );
     }
   }
 
@@ -971,10 +976,10 @@ function Root() {
     elementToScroll.scrollTop = elementToScroll.scrollHeight;
   }
 
-  function highlightLinksAndButtons() {
+  function highlightLinksButtonsAndInputs() {
     if (state.highlightState === HighlightState.None) {
       state.highlightInteractionMode = ElementInteractionMode.Click;
-      highlightElementsBySelector("a,button");
+      highlightElementsBySelector("a,button,input");
     }
   }
 
@@ -1007,7 +1012,7 @@ function Root() {
     d: { desc: "Scroll half-page down", fn: scrollHalfPageDown },
     "g g": { desc: "Scroll to top", fn: scrollToTop },
     "S-g": { desc: "Scroll to bottom", fn: scrollToBottom },
-    i: { desc: "Highlight inputs", fn: highlightAllInputs },
+    i: { desc: "Highlight editable elements", fn: highlightAllInputs },
     "l f": {
       desc: "List all links & buttons",
       fn: () => setShowListAndButtonList((show) => !show),
@@ -1020,7 +1025,10 @@ function Root() {
       desc: "List all tabs",
       fn: () => setShowTabList((show) => !show),
     },
-    f: { desc: "Highlight links & buttons", fn: highlightLinksAndButtons },
+    f: {
+      desc: "Highlight links, buttons and inputs",
+      fn: highlightLinksButtonsAndInputs,
+    },
     "g f": {
       desc: "Highlight links to open in new tab",
       fn: highlightLinksToOpenInNewTab,
