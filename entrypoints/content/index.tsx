@@ -647,9 +647,12 @@ function SearchLinksAndButtons() {
               <div
                 style={{
                   "font-weight": "bold",
+                  "white-space": "nowrap",
+                  "text-overflow": "ellipsis",
+                  overflow: "hidden",
                 }}
               >
-                {item.text}
+                {item.text.trim().length > 0 ? item.text.trim() : "No title"}
               </div>
               <div
                 style={{
