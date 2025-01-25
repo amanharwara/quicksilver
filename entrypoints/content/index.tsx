@@ -1,4 +1,11 @@
-import { ComponentProps, JSX, ParentProps } from "solid-js";
+import {
+  Accessor,
+  children,
+  ComponentProps,
+  JSX,
+  ParentProps,
+  Setter,
+} from "solid-js";
 import { Tabs } from "wxt/browser";
 import { Message } from "../../Message";
 
@@ -144,6 +151,7 @@ const PopupStyles: JSX.CSSProperties = {
   "font-size": rem(1),
   "border-radius": rem(0.25),
   "z-index": 69420,
+  overflow: "hidden",
 };
 function Popup(props: ComponentProps<"div">) {
   let popup: HTMLDivElement | undefined;
@@ -292,11 +300,10 @@ function ClickableItemComp(
     "focusedIndex",
     "children",
     "style",
+    "class",
   ]);
 
   let itemElement: HTMLButtonElement | undefined;
-
-  const [isHovered, setIsHovered] = createSignal(false);
 
   const isFocused = () => props.index === props.focusedIndex;
 
@@ -312,6 +319,10 @@ function ClickableItemComp(
     <button
       ref={itemElement}
       tabIndex={props.index !== 0 ? "-1" : undefined}
+      classList={{
+        "qs-list-item": true,
+        active: isFocused(),
+      }}
       style={{
         ...ButtonDefaultStyles,
         display: "grid",
@@ -321,20 +332,98 @@ function ClickableItemComp(
         gap: rem(0.125),
         "padding-block": rem(0.75),
         "padding-inline": rem(1.25),
-        background:
-          isFocused() || isHovered() ? Colors["cb-dark-60"] : "transparent",
         color: "inherit",
         "user-select": "none",
         "overflow-x": "clip",
-        "--is-hovered": Number(isHovered()),
+        width: "100%",
         ...(typeof props.style !== "string" ? props.style || {} : {}),
       }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
       {...rest}
     >
       {props.children}
     </button>
+  );
+}
+
+/**
+ * @TODO fix moving up/down
+ */
+function VirtualizedList<Item extends unknown>(props: {
+  items: Item[];
+  itemRenderFn: (item: Item, index: Accessor<number>) => JSX.Element;
+  style?: JSX.CSSProperties;
+}) {
+  const [itemSize, setItemSize] = createSignal(100);
+  const [scrollOffset, setScrollOffset] = createSignal(0);
+  const [containerClientHeight, setContainerClientHeight] = createSignal(0);
+
+  function isVisible(index: number) {
+    const containerHeight = containerClientHeight();
+    const scroll = scrollOffset();
+    const size = itemSize();
+    const halfSize = size / 2;
+    const itemTop = index * size;
+    const itemBottom = itemTop + size;
+    return (
+      itemTop >= scroll - halfSize &&
+      itemBottom <= containerHeight + scroll + size
+    );
+  }
+
+  const length = createMemo(() => props.items.length);
+
+  let container: HTMLDivElement | undefined;
+
+  return (
+    <div
+      ref={container}
+      style={{
+        ...(props.style ?? {}),
+        position: "relative",
+        "overflow-y": "scroll",
+      }}
+      onScroll={(event) => setScrollOffset(event.currentTarget.scrollTop)}
+    >
+      <div
+        style={{
+          "min-height": `${length() * itemSize()}px`,
+        }}
+      ></div>
+      <For each={props.items}>
+        {(item, i) => (
+          <Show when={i() === 0 || i() === length() - 1 || isVisible(i())}>
+            <div
+              style={{
+                position: "absolute",
+                top: `${itemSize() * i()}px`,
+                left: 0,
+                width: "100%",
+              }}
+              ref={(el) => {
+                if (i() !== 0) return;
+                const resizeObserver = new ResizeObserver((entries) => {
+                  if (entries.length !== 1) return;
+                  const entry = entries[0];
+                  const { contentBoxSize } = entry;
+                  const size = contentBoxSize[0];
+                  setItemSize(size.blockSize);
+                  setContainerClientHeight(container!.clientHeight);
+                  resizeObserver.disconnect();
+                });
+                resizeObserver.observe(el);
+              }}
+            >
+              {props.itemRenderFn(item, i)}
+            </div>
+          </Show>
+        )}
+      </For>
+      <Show when={!import.meta.env.PROD}>
+        <div style={{ position: "fixed", top: 0, right: rem(1) }}>
+          {length()}; {scrollOffset()}
+        </div>
+      </Show>
+    </div>
   );
 }
 
@@ -413,28 +502,25 @@ function ListSearch<Item extends unknown>(props: {
         }
       }}
     >
-      <div
+      <VirtualizedList
+        items={filtered()}
+        itemRenderFn={(item, index) => (
+          <ClickableItemComp
+            {...(props.itemProps ? props.itemProps : {})}
+            index={index()}
+            focusedIndex={focusedIndex()}
+            onClick={(event) => props.handleSelect(item, event)}
+          >
+            {props.itemContent(item, index() === focusedIndex(), index())}
+          </ClickableItemComp>
+        )}
         style={{
           display: "flex",
           "flex-direction": "column",
-          "overflow-y": "scroll",
           "padding-block": rem(0.5),
-          "padding-inline": "0",
+          "padding-inline": 0,
         }}
-      >
-        <For each={filtered()}>
-          {(item, index) => (
-            <ClickableItemComp
-              {...(props.itemProps ? props.itemProps : {})}
-              index={index()}
-              focusedIndex={focusedIndex()}
-              onClick={(event) => props.handleSelect(item, event)}
-            >
-              {props.itemContent(item, index() === focusedIndex(), index())}
-            </ClickableItemComp>
-          )}
-        </For>
-      </div>
+      />
       <input
         ref={input}
         class="qs-input"
@@ -709,35 +795,99 @@ function TabList() {
   );
 }
 
-function CommandPalette(props: { actions: Actions }) {
-  const actionsList = Object.entries(props.actions);
+function noop() {}
 
+function DebugList() {
+  const debug: number[] = [];
+  for (let i = 0; i < 5000; i++) {
+    debug.push(i);
+  }
+  return (
+    <Popup>
+      <ListSearch
+        items={debug}
+        filter={(i, lq) => i.toString().includes(lq)}
+        itemProps={{
+          style: {
+            "grid-template-rows": "1fr",
+          },
+        }}
+        itemContent={(i) => (
+          <div
+            style={{
+              background: i % 2 === 0 ? "cornflowerblue" : "blueviolet",
+            }}
+          >
+            {i}
+          </div>
+        )}
+        handleSelect={noop}
+      />
+    </Popup>
+  );
+}
+
+function CommandPalette(props: {
+  actions: Actions;
+  getCurrentElement: () => HTMLElement | null;
+  showDebugList: Setter<boolean>;
+}) {
   const context = useContext(mainContext);
 
+  const commands: {
+    desc: string;
+    fn: (event: KeyboardEvent | MouseEvent) => void;
+    key?: string;
+  }[] = [];
+  for (const [key, action] of Object.entries(props.actions)) {
+    commands.push({
+      desc: action.desc,
+      fn: action.fn,
+      key,
+    });
+  }
+
+  if (context && !import.meta.env.PROD) {
+    commands.push({
+      desc: "Show debug list",
+      fn: props.showDebugList,
+    });
+  }
+
   function handleSelect(
-    item: (typeof actionsList)[number],
+    item: (typeof commands)[number],
     event: KeyboardEvent | MouseEvent
   ) {
     context?.resetState(true);
-    item[1].fn(event);
+    item.fn(event);
   }
 
   return (
     <Popup>
       <ListSearch
-        items={actionsList}
+        items={commands}
+        itemProps={{
+          style: {
+            "grid-template-columns": "1fr",
+            "grid-template-rows": "1fr",
+          },
+        }}
         itemContent={(item) => (
-          <>
-            <div>
-              <Kbd>{item[0]}</Kbd>
-            </div>
-            <div>{item[1].desc}</div>
-          </>
+          <div
+            style={{ display: "flex", "align-items": "center", gap: rem(1) }}
+          >
+            <Show when={item.key}>
+              <div>
+                <Kbd>{item.key}</Kbd>
+              </div>
+            </Show>
+            <div>{item.desc}</div>
+          </div>
         )}
-        filter={([key, { desc }], lowercaseQuery) => {
-          return (
-            key.toLowerCase().includes(lowercaseQuery) ||
-            desc.toLowerCase().includes(lowercaseQuery)
+        filter={({ key, desc }, lowercaseQuery) => {
+          return Boolean(
+            key?.toLowerCase().includes(lowercaseQuery) ||
+              desc.toLowerCase().includes(lowercaseQuery)
           );
         }}
         handleSelect={handleSelect}
@@ -770,6 +920,7 @@ function Root() {
   const [showLinkAndButtonList, setShowListAndButtonList] = createSignal(false);
   const [showVideoList, setShowVideoList] = createSignal(false);
   const [showTabList, setShowTabList] = createSignal(false);
+  const [showDebugList, setShowDebugList] = createSignal(false);
   const [showCommandPalette, setShowCommandPalette] = createSignal(false);
 
   function hideAllPopups() {
@@ -778,6 +929,7 @@ function Root() {
     setShowVideoList(false);
     setShowTabList(false);
     setShowCommandPalette(false);
+    setShowDebugList(false);
   }
 
   const idToHighlightMap = new Map<string, HTMLElement>();
@@ -906,7 +1058,8 @@ function Root() {
   function getCurrentElement() {
     let element = state.activeElement;
     if (!element || !element.isConnected) {
-      element = document.activeElement as HTMLElement | null;
+      state.activeElement = element =
+        document.activeElement as HTMLElement | null;
     }
     if (!(element instanceof HTMLElement)) {
       return null;
@@ -1189,6 +1342,9 @@ function Root() {
       <Show when={showTabList()}>
         <TabList />
       </Show>
+      <Show when={showDebugList()}>
+        <DebugList />
+      </Show>
       <Show when={isPassthrough()}>
         <div
           style={{
@@ -1201,7 +1357,11 @@ function Root() {
         </div>
       </Show>
       <Show when={showCommandPalette()}>
-        <CommandPalette actions={actions} />
+        <CommandPalette
+          actions={actions}
+          getCurrentElement={getCurrentElement}
+          showDebugList={() => setShowDebugList(true)}
+        />
       </Show>
       <style>{`
 .qs-input { outline: 0; }
@@ -1214,6 +1374,10 @@ function Root() {
   border: 4px solid rgba(0,0,0,0);
   background-clip: padding-box;
 }
+.qs-list-item { --is-hovered: 0; background: transparent; }
+.qs-list-item:hover, .qs-list-item.active { --is-hovered: 1; background: ${
+        Colors["cb-dark-60"]
+      }; }
 `}</style>
     </mainContext.Provider>
   );
