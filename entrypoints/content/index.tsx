@@ -345,11 +345,9 @@ function ClickableItemComp(
   );
 }
 
-/**
- * @TODO fix moving up/down
- */
 function VirtualizedList<Item extends unknown>(props: {
   items: Item[];
+  focusedIndex: Accessor<number>;
   itemRenderFn: (item: Item, index: Accessor<number>) => JSX.Element;
   style?: JSX.CSSProperties;
 }) {
@@ -391,7 +389,14 @@ function VirtualizedList<Item extends unknown>(props: {
       ></div>
       <For each={props.items}>
         {(item, i) => (
-          <Show when={i() === 0 || i() === length() - 1 || isVisible(i())}>
+          <Show
+            when={
+              i() === 0 ||
+              i() === length() - 1 ||
+              i() === props.focusedIndex() ||
+              isVisible(i())
+            }
+          >
             <div
               style={{
                 position: "absolute",
@@ -504,6 +509,7 @@ function ListSearch<Item extends unknown>(props: {
     >
       <VirtualizedList
         items={filtered()}
+        focusedIndex={focusedIndex}
         itemRenderFn={(item, index) => (
           <ClickableItemComp
             {...(props.itemProps ? props.itemProps : {})}
