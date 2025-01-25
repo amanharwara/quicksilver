@@ -202,6 +202,8 @@ function Kbd(props: ParentProps) {
 }
 
 const mainContext = createContext<{
+  shouldShowDebugInfo: Accessor<boolean>;
+  toggleDebugInfo: () => void;
   hideAllPopups: () => void;
   resetState: (hidePopups: boolean) => void;
 }>();
@@ -326,8 +328,6 @@ function ClickableItemComp(
       style={{
         ...ButtonDefaultStyles,
         display: "grid",
-        "grid-template-columns": "2fr auto",
-        "grid-template-rows": "repeat(2,1fr)",
         "align-items": "center",
         gap: rem(0.125),
         "padding-block": rem(0.75),
@@ -371,6 +371,8 @@ function VirtualizedList<Item extends unknown>(props: {
   const length = createMemo(() => props.items.length);
 
   let container: HTMLDivElement | undefined;
+
+  const context = useContext(mainContext);
 
   return (
     <div
@@ -423,7 +425,7 @@ function VirtualizedList<Item extends unknown>(props: {
           </Show>
         )}
       </For>
-      <Show when={!import.meta.env.PROD}>
+      <Show when={context?.shouldShowDebugInfo()}>
         <div style={{ position: "fixed", top: 0, right: rem(1) }}>
           {length()}; {scrollOffset()}
         </div>
@@ -433,7 +435,7 @@ function VirtualizedList<Item extends unknown>(props: {
 }
 
 function ListSearch<Item extends unknown>(props: {
-  items: Item[];
+  items: Item[] | Accessor<Item[]>;
   filter: (item: Item, lowercaseQuery: string) => boolean;
   itemContent: (item: Item, isFocused: boolean, index: number) => JSX.Element;
   itemProps?: ComponentProps<"button">;
@@ -456,9 +458,11 @@ function ListSearch<Item extends unknown>(props: {
 
   const filtered = createMemo(() => {
     const q = query();
-    if (q.length === 0) return props.items;
+    const items =
+      typeof props.items === "function" ? props.items() : props.items;
+    if (q.length === 0) return items;
     const lowercaseQuery = q.toLowerCase();
-    return props.items.filter((item) => props.filter(item, lowercaseQuery));
+    return items.filter((item) => props.filter(item, lowercaseQuery));
   });
 
   return (
@@ -477,6 +481,16 @@ function ListSearch<Item extends unknown>(props: {
           event.stopImmediatePropagation();
         }
         switch (key) {
+          case "PageUp":
+          case "PageDown":
+            event.preventDefault();
+            break;
+          case "Home":
+            setFocusedIndex(0);
+            break;
+          case "End":
+            setFocusedIndex(filtered().length - 1);
+            break;
           case "ArrowDown":
             setFocusedIndex((index) => {
               const next = index + 1;
@@ -523,7 +537,6 @@ function ListSearch<Item extends unknown>(props: {
         style={{
           display: "flex",
           "flex-direction": "column",
-          "padding-block": rem(0.5),
           "padding-inline": 0,
         }}
       />
@@ -539,6 +552,7 @@ function ListSearch<Item extends unknown>(props: {
           "border-radius": "0",
           "border-bottom-left-radius": rem(0.25),
           "border-bottom-right-radius": rem(0.25),
+          "z-index": 1,
         }}
         value={query()}
         onInput={(event) => {
@@ -583,94 +597,95 @@ function SearchLinksAndButtons() {
     items.push(item);
   }
 
-  function handleSelect(
-    item: ClickableItem,
-    event: KeyboardEvent | MouseEvent
-  ) {
-    context?.resetState(true);
-    const element = item.element;
-    if (item.href && event.ctrlKey) {
-      handleElementInteraction(element, ElementInteractionMode.OpenInNewTab);
-    } else if (event.shiftKey) {
-      handleElementInteraction(element, ElementInteractionMode.Focus);
-    } else {
-      handleElementInteraction(element, ElementInteractionMode.Click);
-    }
+  const [selectedItem, setSelectedItem] = createSignal<ClickableItem>();
+  const selectedItemActions = [
+    {
+      desc: "Open",
+      fn: (item: ClickableItem) => {
+        const element = item.element;
+        handleElementInteraction(element, ElementInteractionMode.Click);
+      },
+    },
+    {
+      desc: "Focus",
+      fn: (item: ClickableItem) => {
+        const element = item.element;
+        handleElementInteraction(element, ElementInteractionMode.Focus);
+      },
+    },
+    {
+      desc: "Open in new tab",
+      fn: (item: ClickableItem) => {
+        const element = item.element;
+        handleElementInteraction(element, ElementInteractionMode.OpenInNewTab);
+      },
+    },
+  ];
+
+  function handleSelect(item: ClickableItem) {
+    setSelectedItem(item);
   }
 
   return (
-    <Popup>
-      <ListSearch
-        items={items}
-        filter={(a, lowercaseQuery) => {
-          return (
-            a.text.toLowerCase().includes(lowercaseQuery) ||
-            a.href?.toLowerCase().includes(lowercaseQuery) ||
-            false
-          );
+    <>
+      <Popup
+        style={{
+          visibility: !!selectedItem() ? "hidden" : undefined,
         }}
-        itemContent={(item, isFocused) => (
-          <>
-            <div
-              style={{
-                "grid-column-end": "2",
-                "font-weight": "bold",
-              }}
-            >
-              {item.text}
-            </div>
-            <div
-              style={{
-                "grid-column-end": "2",
-                "font-size": "smaller",
-                "white-space": "nowrap",
-                "text-overflow": "ellipsis",
-                overflow: "hidden",
-              }}
-            >
-              <Show when={item.href} fallback={"<button>"}>
-                {item.href}
-              </Show>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                "flex-direction": "column",
-                "align-items": "end",
-                "grid-column-start": "2",
-                "grid-row": "1 / 3",
-                gap: rem(0.25),
-                "font-size": "small",
-                "pointer-events": "none",
-                opacity: isFocused ? "1" : "var(--is-hovered)",
-              }}
-            >
-              <div style={{ display: "flex", "align-items": "center" }}>
-                <Kbd>Enter</Kbd>{" "}
-                <span style={{ "margin-left": "4px" }}>
-                  {item.href ? "open" : "click"}
-                </span>
+      >
+        <ListSearch
+          items={items}
+          filter={(a, lowercaseQuery) => {
+            return (
+              a.text.toLowerCase().includes(lowercaseQuery) ||
+              a.href?.toLowerCase().includes(lowercaseQuery) ||
+              false
+            );
+          }}
+          itemContent={(item) => (
+            <>
+              <div
+                style={{
+                  "font-weight": "bold",
+                }}
+              >
+                {item.text}
               </div>
-              <div style={{ display: "flex", "align-items": "center" }}>
-                <Kbd>Shift</Kbd>
-                <span style={{ margin: "2px" }}>+</span>
-                <Kbd>Enter</Kbd>
-                <span style={{ "margin-left": "4px" }}>focus</span>
+              <div
+                style={{
+                  "font-size": "smaller",
+                  "white-space": "nowrap",
+                  "text-overflow": "ellipsis",
+                  overflow: "hidden",
+                }}
+              >
+                <Show when={item.href} fallback={"<button>"}>
+                  {item.href}
+                </Show>
               </div>
-              <Show when={item.href}>
-                <div style={{ display: "flex", "align-items": "center" }}>
-                  <Kbd>Ctrl</Kbd>
-                  <span style={{ margin: "2px" }}>+</span>
-                  <Kbd>Enter</Kbd>
-                  <span style={{ "margin-left": "4px" }}>new tab</span>
-                </div>
-              </Show>
-            </div>
-          </>
-        )}
-        handleSelect={handleSelect}
-      />
-    </Popup>
+            </>
+          )}
+          handleSelect={handleSelect}
+        />
+      </Popup>
+      <Show when={selectedItem()}>
+        <Popup>
+          <ListSearch
+            items={selectedItemActions}
+            itemContent={({ desc }) => (
+              <span style={{ "font-weight": "bold" }}>{desc}</span>
+            )}
+            filter={({ desc }, lq) => desc.toLowerCase().includes(lq)}
+            handleSelect={({ fn }) => {
+              context?.resetState(true);
+              const item = selectedItem();
+              if (!item) return;
+              fn(item);
+            }}
+          />
+        </Popup>
+      </Show>
+    </>
   );
 }
 
@@ -745,7 +760,7 @@ function TabList() {
     <Show when={tabs()}>
       <Popup
         style={{
-          opacity: !!selectedTab() ? "0" : undefined,
+          visibility: !!selectedTab() ? "hidden" : undefined,
         }}
       >
         <ListSearch
@@ -781,11 +796,6 @@ function TabList() {
         <Popup>
           <ListSearch
             items={tabActions}
-            itemProps={{
-              style: {
-                "grid-template-rows": "1fr",
-              },
-            }}
             itemContent={(item) => (
               <span style={{ "font-weight": "bold" }}>{item.name}</span>
             )}
@@ -813,11 +823,6 @@ function DebugList() {
       <ListSearch
         items={debug}
         filter={(i, lq) => i.toString().includes(lq)}
-        itemProps={{
-          style: {
-            "grid-template-rows": "1fr",
-          },
-        }}
         itemContent={(i) => (
           <div
             style={{
@@ -836,7 +841,7 @@ function DebugList() {
 function CommandPalette(props: {
   actions: Actions;
   getCurrentElement: () => HTMLElement | null;
-  showDebugList: Setter<boolean>;
+  showDebugList: () => boolean;
 }) {
   const context = useContext(mainContext);
 
@@ -860,6 +865,11 @@ function CommandPalette(props: {
     });
   }
 
+  commands.push({
+    desc: "Toggle debug info",
+    fn: context!.toggleDebugInfo,
+  });
+
   function handleSelect(
     item: (typeof commands)[number],
     event: KeyboardEvent | MouseEvent
@@ -872,12 +882,6 @@ function CommandPalette(props: {
     <Popup>
       <ListSearch
         items={commands}
-        itemProps={{
-          style: {
-            "grid-template-columns": "1fr",
-            "grid-template-rows": "1fr",
-          },
-        }}
         itemContent={(item) => (
           <div
             style={{ display: "flex", "align-items": "center", gap: rem(1) }}
@@ -928,6 +932,8 @@ function Root() {
   const [showTabList, setShowTabList] = createSignal(false);
   const [showDebugList, setShowDebugList] = createSignal(false);
   const [showCommandPalette, setShowCommandPalette] = createSignal(false);
+
+  const [shouldShowDebugInfo, setShouldShowDebugInfo] = createSignal(false);
 
   function hideAllPopups() {
     setShowActionHelp(false);
@@ -1316,6 +1322,8 @@ function Root() {
   return (
     <mainContext.Provider
       value={{
+        shouldShowDebugInfo,
+        toggleDebugInfo: () => setShouldShowDebugInfo((b) => !b),
         hideAllPopups,
         resetState,
       }}
