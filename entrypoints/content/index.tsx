@@ -465,6 +465,8 @@ function ListSearch<Item extends unknown>(props: {
     return items.filter((item) => props.filter(item, lowercaseQuery));
   });
 
+  const context = useContext(mainContext);
+
   return (
     <div
       style={{
@@ -477,10 +479,11 @@ function ListSearch<Item extends unknown>(props: {
           return;
         }
         const { key } = event;
-        if (key !== "Escape") {
-          event.stopImmediatePropagation();
-        }
         switch (key) {
+          case "Escape":
+            event.preventDefault();
+            context?.resetState(true);
+            break;
           case "PageUp":
           case "PageDown":
             event.preventDefault();
@@ -700,22 +703,106 @@ function VideoList() {
     videos.push(video);
   }
 
-  function handleSelect(
-    item: HTMLVideoElement,
-    event: KeyboardEvent | MouseEvent
-  ) {
-    context?.resetState(true);
-  }
+  const [selectedVideo, setSelectedVideo] =
+    createSignal<HTMLVideoElement | null>(null);
+
+  const [showPlaybackRatePopup, setShowPlaybackRatePopup] = createSignal(false);
+
+  const playbackRates = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+
+  const selectedItemActions = [
+    {
+      desc: "Play/pause",
+      fn: () => {
+        const video = selectedVideo();
+        if (!video) return;
+        if (video.paused) video.play();
+        else video.pause();
+      },
+    },
+    {
+      desc: "Change playback rate",
+      fn: () => {
+        setShowPlaybackRatePopup(true);
+      },
+    },
+    {
+      desc: "Scroll into view",
+      fn: () => {
+        const video = selectedVideo();
+        if (!video) return;
+        video.scrollIntoView();
+      },
+    },
+  ];
+
+  let videoListPopup: HTMLDivElement | undefined;
+  let selectedVideoPopup: HTMLDivElement | undefined;
 
   return (
-    <Popup>
-      <ListSearch
-        items={videos}
-        itemContent={(item) => <>{item.src}</>}
-        filter={() => true}
-        handleSelect={handleSelect}
-      />
-    </Popup>
+    <>
+      <Popup
+        ref={videoListPopup}
+        style={{
+          visibility: !!selectedVideo() ? "hidden" : undefined,
+        }}
+      >
+        <ListSearch
+          items={videos}
+          itemContent={(item) => <>{item.src}</>}
+          filter={(video, lq) => video.src.toLowerCase().includes(lq)}
+          handleSelect={function selectVideo(video) {
+            setSelectedVideo(video);
+          }}
+        />
+      </Popup>
+      <Show when={selectedVideo()}>
+        <Popup ref={selectedVideoPopup}>
+          <ListSearch
+            items={selectedItemActions}
+            itemContent={({ desc }) => (
+              <span style={{ "font-weight": "bold" }}>{desc}</span>
+            )}
+            filter={({ desc }, lq) => desc.toLowerCase().includes(lq)}
+            handleSelect={function selectVideoOption({ fn }) {
+              fn();
+            }}
+            handleKeyDown={(_, event) => {
+              if (event.key !== "Escape") return false;
+              event.preventDefault();
+              setSelectedVideo(null);
+              videoListPopup?.querySelector("input")?.focus();
+              return true;
+            }}
+          />
+        </Popup>
+        <Show when={showPlaybackRatePopup()}>
+          <Popup>
+            <ListSearch
+              items={playbackRates}
+              itemContent={(rate) => (
+                <span style={{ "font-weight": "bold" }}>{rate}</span>
+              )}
+              filter={() => true}
+              handleSelect={(rate) => {
+                const video = selectedVideo();
+                if (!video) return;
+                video.playbackRate = rate;
+                setShowPlaybackRatePopup(false);
+                selectedVideoPopup?.querySelector("input")?.focus();
+              }}
+              handleKeyDown={(_, event) => {
+                if (event.key !== "Escape") return false;
+                event.preventDefault();
+                setShowPlaybackRatePopup(false);
+                selectedVideoPopup?.querySelector("input")?.focus();
+                return true;
+              }}
+            />
+          </Popup>
+        </Show>
+      </Show>
+    </>
   );
 }
 
@@ -1249,12 +1336,12 @@ function Root() {
       element instanceof HTMLInputElement ||
       element instanceof HTMLTextAreaElement ||
       element?.closest('[contenteditable="true"]');
-    if (key === "Escape" || isInputElement) {
-      if (key === "Escape") {
-        resetState(true);
-      }
-
+    if (isInputElement) {
       resetState(false);
+      return;
+    }
+    if (key === "Escape") {
+      resetState(true);
       return;
     }
 
