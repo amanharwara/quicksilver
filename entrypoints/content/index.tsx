@@ -708,16 +708,16 @@ function SearchLinksAndButtons() {
   );
 }
 
-function VideoControls(props: { video: HTMLVideoElement }) {
-  const [isPlaying, setIsPlaying] = createSignal(false);
-  const [currentTime, setCurrentTime] = createSignal(props.video.currentTime);
-  const [duration, setDuration] = createSignal(props.video.duration);
+function MediaControls(props: { media: HTMLMediaElement }) {
+  const [isPlaying, setIsPlaying] = createSignal(!props.media.paused);
+  const [currentTime, setCurrentTime] = createSignal(props.media.currentTime);
+  const [duration, setDuration] = createSignal(props.media.duration);
   const [playbackRate, setPlaybackRate] = createSignal(
-    props.video.playbackRate
+    props.media.playbackRate
   );
-  const [volume, setVolume] = createSignal(props.video.volume);
-  const [muted, setMuted] = createSignal(props.video.muted);
-  const [loop, setLoop] = createSignal(props.video.loop);
+  const [volume, setVolume] = createSignal(props.media.volume);
+  const [muted, setMuted] = createSignal(props.media.muted);
+  const [loop, setLoop] = createSignal(props.media.loop);
 
   let popup: HTMLDivElement | undefined;
 
@@ -728,57 +728,57 @@ function VideoControls(props: { video: HTMLVideoElement }) {
 
     const controller = new AbortController();
 
-    props.video.addEventListener(
+    props.media.addEventListener(
       "play",
       () => {
         setIsPlaying(true);
-        setLoop(props.video.loop);
+        setLoop(props.media.loop);
       },
       {
         signal: controller.signal,
       }
     );
 
-    props.video.addEventListener(
+    props.media.addEventListener(
       "pause",
       () => {
         setIsPlaying(false);
-        setLoop(props.video.loop);
+        setLoop(props.media.loop);
       },
       {
         signal: controller.signal,
       }
     );
 
-    props.video.addEventListener(
+    props.media.addEventListener(
       "durationchange",
-      () => setDuration(props.video.duration),
+      () => setDuration(props.media.duration),
       {
         signal: controller.signal,
       }
     );
 
-    props.video.addEventListener(
+    props.media.addEventListener(
       "ratechange",
-      () => setPlaybackRate(props.video.playbackRate),
+      () => setPlaybackRate(props.media.playbackRate),
       {
         signal: controller.signal,
       }
     );
 
-    props.video.addEventListener(
+    props.media.addEventListener(
       "timeupdate",
-      () => setCurrentTime(props.video.currentTime),
+      () => setCurrentTime(props.media.currentTime),
       {
         signal: controller.signal,
       }
     );
 
-    props.video.addEventListener(
+    props.media.addEventListener(
       "volumechange",
       () => {
-        setVolume(props.video.volume);
-        setMuted(props.video.muted);
+        setVolume(props.media.volume);
+        setMuted(props.media.muted);
       },
       {
         signal: controller.signal,
@@ -791,25 +791,49 @@ function VideoControls(props: { video: HTMLVideoElement }) {
     const cleanupKeydownListener = context!.registerKeydownListener((event) => {
       const key = getKeyRepresentation(event);
       switch (key) {
-        case " ":
+        case " ": {
           event.preventDefault();
-          toggleVideoPlay();
+          toggleMediaPlay();
           return true;
+        }
         case "S-<": {
           event.preventDefault();
-          const currentRate = props.video.playbackRate;
-          props.video.playbackRate = Math.max(currentRate - 0.25, 0);
+          const currentRate = props.media.playbackRate;
+          props.media.playbackRate = Math.max(currentRate - 0.25, 0);
           return true;
         }
         case "S->": {
           event.preventDefault();
-          const currentRate = props.video.playbackRate;
-          props.video.playbackRate = Math.min(currentRate + 0.25, 2.5);
+          const currentRate = props.media.playbackRate;
+          props.media.playbackRate = Math.min(currentRate + 0.25, 2.5);
           return true;
         }
         case "m": {
           event.preventDefault();
-          props.video.muted = !props.video.muted;
+          props.media.muted = !props.media.muted;
+          return true;
+        }
+        case "arrowdown": {
+          event.preventDefault();
+          props.media.volume = Math.max(props.media.volume - 0.15, 0);
+          return true;
+        }
+        case "arrowup": {
+          event.preventDefault();
+          props.media.volume = Math.min(props.media.volume + 0.15, 1);
+          return true;
+        }
+        case "arrowleft": {
+          event.preventDefault();
+          props.media.currentTime = Math.max(props.media.currentTime - 5, 0);
+          return true;
+        }
+        case "arrowright": {
+          event.preventDefault();
+          props.media.currentTime = Math.min(
+            props.media.currentTime + 5,
+            props.media.duration
+          );
           return true;
         }
         default:
@@ -842,12 +866,12 @@ function VideoControls(props: { video: HTMLVideoElement }) {
     });
   });
 
-  function toggleVideoPlay() {
-    const video = props.video;
+  function toggleMediaPlay() {
+    const media = props.media;
     if (isPlaying()) {
-      video.pause();
+      media.pause();
     } else {
-      video.play();
+      media.play();
     }
   }
 
@@ -872,7 +896,7 @@ function VideoControls(props: { video: HTMLVideoElement }) {
           "place-self": "center",
         }}
       >
-        {props.video.src}
+        {props.media.src}
       </div>
       <div
         style={{
@@ -894,7 +918,7 @@ function VideoControls(props: { video: HTMLVideoElement }) {
           style={{ "flex-grow": "1" }}
           onChange={(event) => {
             const target = event.target;
-            props.video.currentTime = parseFloat(target.value);
+            props.media.currentTime = parseFloat(target.value);
           }}
         />
         <div style={{ "font-variant-numeric": "tabular-nums" }}>
@@ -916,7 +940,7 @@ function VideoControls(props: { video: HTMLVideoElement }) {
             type="checkbox"
             checked={muted()}
             onChange={(event) => {
-              props.video.muted = event.target.checked;
+              props.media.muted = event.target.checked;
             }}
           />
           Muted
@@ -929,7 +953,7 @@ function VideoControls(props: { video: HTMLVideoElement }) {
           style={{ "flex-grow": "1" }}
           onChange={(event) => {
             const target = event.target;
-            props.video.volume = parseFloat(target.value);
+            props.media.volume = parseFloat(target.value);
           }}
           disabled={muted()}
         />
@@ -940,7 +964,7 @@ function VideoControls(props: { video: HTMLVideoElement }) {
           "grid-row": "3",
           "place-self": "center",
         }}
-        onClick={toggleVideoPlay}
+        onClick={toggleMediaPlay}
       >
         <div
           role="presentation"
@@ -970,7 +994,7 @@ function VideoControls(props: { video: HTMLVideoElement }) {
             type="checkbox"
             checked={loop()}
             onChange={(event) => {
-              setLoop((props.video.loop = event.target.checked));
+              setLoop((props.media.loop = event.target.checked));
             }}
           />
           Loop
@@ -981,31 +1005,32 @@ function VideoControls(props: { video: HTMLVideoElement }) {
   );
 }
 
-function VideoList() {
-  const videos: HTMLVideoElement[] = [];
-  for (const video of document.querySelectorAll("video")) {
-    videos.push(video);
+function MediaList() {
+  const mediaElements: HTMLMediaElement[] = [];
+  for (const media of document.querySelectorAll("video, audio")) {
+    if (!(media instanceof HTMLMediaElement)) continue;
+    mediaElements.push(media);
   }
 
-  const [selectedVideo, setSelectedVideo] =
-    createSignal<HTMLVideoElement | null>(null);
+  const [selectedMedia, setSelectedMedia] =
+    createSignal<HTMLMediaElement | null>(null);
 
   return (
     <>
-      <Show when={!selectedVideo()}>
+      <Show when={!selectedMedia()}>
         <Popup>
           <ListSearch
-            items={videos}
+            items={mediaElements}
             itemContent={(item) => <>{item.src}</>}
-            filter={(video, lq) => video.src.toLowerCase().includes(lq)}
-            handleSelect={function selectVideo(video) {
-              setSelectedVideo(video);
+            filter={(media, lq) => media.src.toLowerCase().includes(lq)}
+            handleSelect={function selectMedia(media) {
+              setSelectedMedia(media);
             }}
           />
         </Popup>
       </Show>
-      <Show when={selectedVideo()}>
-        <VideoControls video={selectedVideo()!} />
+      <Show when={selectedMedia()}>
+        <MediaControls media={selectedMedia()!} />
       </Show>
     </>
   );
@@ -1223,7 +1248,7 @@ function Root() {
 
   const [showActionHelp, setShowActionHelp] = createSignal(false);
   const [showLinkAndButtonList, setShowListAndButtonList] = createSignal(false);
-  const [showVideoList, setShowVideoList] = createSignal(false);
+  const [showMediaList, setShowMediaList] = createSignal(false);
   const [showTabList, setShowTabList] = createSignal(false);
   const [showDebugList, setShowDebugList] = createSignal(false);
   const [showCommandPalette, setShowCommandPalette] = createSignal(false);
@@ -1233,7 +1258,7 @@ function Root() {
   function hideAllPopups() {
     setShowActionHelp(false);
     setShowListAndButtonList(false);
-    setShowVideoList(false);
+    setShowMediaList(false);
     setShowTabList(false);
     setShowCommandPalette(false);
     setShowDebugList(false);
@@ -1478,8 +1503,8 @@ function Root() {
       fn: () => setShowListAndButtonList((show) => !show),
     },
     "l v": {
-      desc: "List all videos",
-      fn: () => setShowVideoList((show) => !show),
+      desc: "List all media",
+      fn: () => setShowMediaList((show) => !show),
     },
     "l t": {
       desc: "List all tabs",
@@ -1671,8 +1696,8 @@ function Root() {
       <Show when={showLinkAndButtonList()}>
         <SearchLinksAndButtons />
       </Show>
-      <Show when={showVideoList()}>
-        <VideoList />
+      <Show when={showMediaList()}>
+        <MediaList />
       </Show>
       <Show when={showTabList()}>
         <TabList />
