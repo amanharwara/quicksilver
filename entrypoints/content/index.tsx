@@ -7,7 +7,29 @@ import {
 } from "solid-js";
 import { Tabs } from "wxt/browser";
 import { Message } from "../../Message";
-import { LoopIcon, MuteIcon, PauseIcon, PlayIcon } from "./icons";
+import {
+  ChevronDownIcon,
+  LoopIcon,
+  MuteIcon,
+  PauseIcon,
+  PlayIcon,
+} from "./icons";
+
+const mainContext = createContext<{
+  shouldShowDebugInfo: Accessor<boolean>;
+  toggleDebugInfo: () => void;
+  hideAllPopups: () => void;
+  resetState: (hidePopups: boolean) => void;
+  registerKeydownListener: (
+    listener: KeyEventListener
+  ) => KeyEventListenerCleanup;
+}>();
+
+function useMainContext() {
+  const ctx = useContext(mainContext);
+  if (!ctx) throw new Error("No quicksilver context available");
+  return ctx;
+}
 
 const letters = Array(26)
   .fill(0)
@@ -159,11 +181,13 @@ const PopupStyles: JSX.CSSProperties = {
   "border-radius": rem(0.25),
   "z-index": 69420,
   overflow: "hidden",
+  padding: 0,
+  border: 0,
 };
-function Popup(props: ComponentProps<"div">) {
-  let popup: HTMLDivElement | undefined;
+function Popup(props: ComponentProps<"dialog">) {
+  let popup: HTMLDialogElement | undefined;
 
-  const context = useContext(mainContext);
+  const context = useMainContext();
 
   const clickListener = (event: MouseEvent) => {
     if (!popup || !(event.target instanceof Element)) {
@@ -172,7 +196,7 @@ function Popup(props: ComponentProps<"div">) {
     if (popup.contains(event.target)) {
       return;
     }
-    context?.hideAllPopups();
+    context.hideAllPopups();
   };
 
   onMount(() => {
@@ -183,7 +207,7 @@ function Popup(props: ComponentProps<"div">) {
   });
 
   return (
-    <div
+    <dialog
       {...props}
       ref={popup}
       class="qs-popup"
@@ -193,7 +217,7 @@ function Popup(props: ComponentProps<"div">) {
       }}
     >
       {props.children}
-    </div>
+    </dialog>
   );
 }
 
@@ -210,16 +234,6 @@ function Kbd(props: ParentProps) {
 
 type KeyEventListener = (event: KeyboardEvent) => boolean;
 type KeyEventListenerCleanup = () => void;
-
-const mainContext = createContext<{
-  shouldShowDebugInfo: Accessor<boolean>;
-  toggleDebugInfo: () => void;
-  hideAllPopups: () => void;
-  resetState: (hidePopups: boolean) => void;
-  registerKeydownListener: (
-    listener: KeyEventListener
-  ) => KeyEventListenerCleanup;
-}>();
 
 function handleElementInteraction(
   element: HTMLElement,
@@ -385,7 +399,7 @@ function VirtualizedList<Item extends unknown>(props: {
 
   let container: HTMLDivElement | undefined;
 
-  const context = useContext(mainContext);
+  const context = useMainContext();
 
   return (
     <div
@@ -438,7 +452,7 @@ function VirtualizedList<Item extends unknown>(props: {
           </Show>
         )}
       </For>
-      <Show when={context?.shouldShowDebugInfo()}>
+      <Show when={context.shouldShowDebugInfo()}>
         <div style={{ position: "fixed", top: 0, right: rem(1) }}>
           {length()}; {scrollOffset()}
         </div>
@@ -478,7 +492,7 @@ function ListSearch<Item extends unknown>(props: {
     return items.filter((item) => props.filter(item, lowercaseQuery));
   });
 
-  const context = useContext(mainContext);
+  const context = useMainContext();
 
   return (
     <div
@@ -495,7 +509,7 @@ function ListSearch<Item extends unknown>(props: {
         switch (key) {
           case "Escape":
             event.preventDefault();
-            context?.resetState(true);
+            context.resetState(true);
             break;
           case "PageUp":
           case "PageDown":
@@ -588,7 +602,7 @@ function ListSearch<Item extends unknown>(props: {
 }
 
 function SearchLinksAndButtons() {
-  const context = useContext(mainContext);
+  const context = useMainContext();
 
   const items: ClickableItem[] = [];
   for (const element of document.querySelectorAll("a,button")) {
@@ -703,7 +717,7 @@ function SearchLinksAndButtons() {
             )}
             filter={({ desc }, lq) => desc.toLowerCase().includes(lq)}
             handleSelect={({ fn }) => {
-              context?.resetState(true);
+              context.resetState(true);
               const item = selectedItem();
               if (!item) return;
               fn(item);
@@ -724,7 +738,7 @@ function Toggle(props: {
   return (
     <label
       classList={{
-        "qs-icon-btn": true,
+        "qs-outline-btn": true,
         "qs-toggle": true,
         active: props.active,
       }}
@@ -737,12 +751,6 @@ function Toggle(props: {
           props.onChange(event.target.checked);
         }}
       />
-      {/* <LoopIcon
-        style={{
-          width: rem(1.325),
-          height: rem(1.325),
-        }}
-      /> */}
       {props.icon({
         style: {
           width: rem(1.325),
@@ -751,6 +759,92 @@ function Toggle(props: {
       })}
       <span class="sr-only">{props.label}</span>
     </label>
+  );
+}
+
+const playbackRates = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+function PlaybackRateMenu(props: {
+  media: HTMLMediaElement;
+  closeMenu: () => void;
+}) {
+  const context = useMainContext();
+
+  const [focusedIndex, setFocusedIndex] = createSignal(
+    playbackRates.findIndex((r) => r === props.media.playbackRate)
+  );
+
+  function selectRate(rate: number) {
+    props.closeMenu();
+    props.media.playbackRate = rate;
+  }
+
+  onMount(() => {
+    const cleanup = context.registerKeydownListener((event) => {
+      const key = getKeyRepresentation(event);
+      switch (key) {
+        case "arrowdown":
+          event.preventDefault();
+          setFocusedIndex((index) => {
+            const next = index + 1;
+            const last = playbackRates.length - 1;
+            if (next > last) {
+              return 0;
+            }
+            return next;
+          });
+          return true;
+        case "arrowup":
+          event.preventDefault();
+          setFocusedIndex((index) => {
+            const prev = index - 1;
+            if (prev < 0) {
+              return playbackRates.length - 1;
+            }
+            return prev;
+          });
+          return true;
+        case "enter":
+          event.preventDefault();
+          const rate = playbackRates[focusedIndex()];
+          selectRate(rate);
+          return true;
+        case "escape":
+          return true;
+        default:
+          break;
+      }
+      return false;
+    });
+    onCleanup(() => cleanup());
+  });
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        "flex-direction": "column",
+      }}
+    >
+      <For each={playbackRates}>
+        {(rate, index) => (
+          <button
+            classList={{
+              "qs-list-item": true,
+              active: focusedIndex() === index(),
+            }}
+            style={{
+              ...ButtonDefaultStyles,
+              color: Colors["cb-light-90"],
+              "font-size": rem(1),
+              padding: `${rem(0.325)} ${rem(1.25)}`,
+            }}
+            onClick={() => selectRate(rate)}
+          >
+            {rate}x
+          </button>
+        )}
+      </For>
+    </div>
   );
 }
 
@@ -765,12 +859,31 @@ function MediaControls(props: { media: HTMLMediaElement }) {
   const [muted, setMuted] = createSignal(props.media.muted);
   const [loop, setLoop] = createSignal(props.media.loop);
 
-  let popup: HTMLDivElement | undefined;
+  const [isPlaybackRateMenuOpen, setIsPlaybackRateMenuOpen] =
+    createSignal(false);
 
-  const context = useContext(mainContext);
+  let popup: HTMLDialogElement | undefined;
+  let playbackRateButton: HTMLButtonElement | undefined;
+  const [playbackRateMenuPos, setPlaybackRateMenuPos] = createSignal<
+    { minWidth: number; bottom: number; right: number } | undefined
+  >();
+
+  const context = useMainContext();
 
   onMount(() => {
-    popup?.focus();
+    if (popup) {
+      popup.focus();
+      if (playbackRateButton) {
+        const rateBtnRect = playbackRateButton.getBoundingClientRect();
+        setPlaybackRateMenuPos({
+          minWidth: rateBtnRect.width,
+          // bottom: popupRect.bottom - rateBtnRect.bottom + rateBtnRect.height,
+          bottom: window.innerHeight - rateBtnRect.top,
+          // right: popupRect.right - rateBtnRect.right,
+          right: document.documentElement.clientWidth - rateBtnRect.right,
+        });
+      }
+    }
 
     const controller = new AbortController();
 
@@ -834,7 +947,7 @@ function MediaControls(props: { media: HTMLMediaElement }) {
     //
     // maybe allow registering actions instead of having to handle keydown directly?
     //
-    const cleanupKeydownListener = context!.registerKeydownListener((event) => {
+    const cleanupKeydownListener = context.registerKeydownListener((event) => {
       const key = getKeyRepresentation(event);
       switch (key) {
         case " ": {
@@ -1010,7 +1123,7 @@ function MediaControls(props: { media: HTMLMediaElement }) {
         />
       </div>
       <button
-        class="qs-icon-btn"
+        class="qs-outline-btn"
         style={{
           display: "grid",
           "place-items": "center",
@@ -1060,6 +1173,81 @@ function MediaControls(props: { media: HTMLMediaElement }) {
           "align-self": "center",
         }}
       >
+        <button
+          ref={playbackRateButton}
+          class="qs-outline-btn"
+          popoverTarget="playback-rate-menu"
+          style={{
+            display: "flex",
+            "align-items": "center",
+            gap: rem(0.25),
+            ...ButtonDefaultStyles,
+            color: Colors["cb-light-90"],
+            padding: `${rem(0.25)} ${rem(0.325)}`,
+            border: `2px solid ${Colors["cb-dark-50"]}`,
+            "border-radius": rem(0.25),
+            "border-top-right-radius": isPlaybackRateMenuOpen()
+              ? "0px"
+              : undefined,
+            "border-top-left-radius": isPlaybackRateMenuOpen()
+              ? "0px"
+              : undefined,
+            background: isPlaybackRateMenuOpen()
+              ? Colors["cb-dark-50"]
+              : undefined,
+          }}
+          onClick={() => setIsPlaybackRateMenuOpen((open) => !open)}
+        >
+          <div class="sr-only">Playback speed:</div>
+          <div>{playbackRate()}x</div>
+          <ChevronDownIcon
+            style={{
+              width: rem(1.25),
+              height: rem(1.25),
+              transition: "rotate 50ms",
+              rotate: isPlaybackRateMenuOpen() ? "180deg" : undefined,
+            }}
+          />
+        </button>
+        <Show when={playbackRateMenuPos()}>
+          {(pos) => (
+            <div
+              popover
+              id="playback-rate-menu"
+              style={{
+                position: "fixed",
+                inset: "unset",
+                right: `${pos().right}px`,
+                bottom: `${pos().bottom - 1}px`,
+                "min-width": `${pos().minWidth}px`,
+                transition: "opacity 50ms",
+                opacity: isPlaybackRateMenuOpen() ? 1 : 0,
+
+                border: `2px solid ${Colors["cb-dark-50"]}`,
+                "border-bottom": "0px",
+                "border-radius": rem(0.25),
+                "border-bottom-right-radius": isPlaybackRateMenuOpen()
+                  ? "0px"
+                  : undefined,
+                background: PopupStyles["background"],
+                color: Colors["cb-light-90"],
+                padding: 0,
+              }}
+              onToggle={({ newState }) =>
+                setIsPlaybackRateMenuOpen(newState === "open")
+              }
+            >
+              <Show when={isPlaybackRateMenuOpen()}>
+                <PlaybackRateMenu
+                  media={props.media}
+                  closeMenu={() =>
+                    document.getElementById("playback-rate-menu")?.hidePopover()
+                  }
+                />
+              </Show>
+            </div>
+          )}
+        </Show>
         <Toggle
           active={loop()}
           onChange={(loop) => setLoop((props.media.loop = loop))}
@@ -1070,7 +1258,6 @@ function MediaControls(props: { media: HTMLMediaElement }) {
             </Show>
           }
         />
-        <div>{playbackRate()}x</div>
       </div>
     </Popup>
   );
@@ -1118,7 +1305,7 @@ function TabList() {
     return response as Tabs.Tab[];
   });
 
-  const context = useContext(mainContext);
+  const context = useMainContext();
 
   const [selectedTab, setSelectedTab] = createSignal<Tabs.Tab>();
 
@@ -1192,7 +1379,7 @@ function TabList() {
             )}
             filter={({ name }, lq) => name.toLowerCase().includes(lq)}
             handleSelect={(action) => {
-              context?.resetState(true);
+              context.resetState(true);
               action.fn();
             }}
           />
@@ -1234,7 +1421,7 @@ function CommandPalette(props: {
   getCurrentElement: () => HTMLElement | null;
   showDebugList: () => boolean;
 }) {
-  const context = useContext(mainContext);
+  const context = useMainContext();
 
   const commands: {
     desc: string;
@@ -1249,7 +1436,7 @@ function CommandPalette(props: {
     });
   }
 
-  if (context && !import.meta.env.PROD) {
+  if (!import.meta.env.PROD) {
     commands.push({
       desc: "Show debug list",
       fn: props.showDebugList,
@@ -1258,14 +1445,14 @@ function CommandPalette(props: {
 
   commands.push({
     desc: "Toggle debug info",
-    fn: context!.toggleDebugInfo,
+    fn: context.toggleDebugInfo,
   });
 
   function handleSelect(
     item: (typeof commands)[number],
     event: KeyboardEvent | MouseEvent
   ) {
-    context?.resetState(true);
+    context.resetState(true);
     item.fn(event);
   }
 
@@ -1805,14 +1992,14 @@ function Root() {
   border: 4px solid rgba(0,0,0,0);
   background-clip: padding-box;
 }
-.qs-popup:focus-visible { outline: 2px solid cornflowerblue; }
+.qs-popup:focus-visible, .qs-popup *:focus-visible { outline: 2px solid cornflowerblue; }
 .qs-list-item { --is-hovered: 0; background: transparent; }
 .qs-list-item:hover, .qs-list-item.active { --is-hovered: 1; background: ${
         Colors["cb-dark-60"]
       }; }
-.qs-icon-btn { background: transparent; }
-.qs-icon-btn:hover { background: ${Colors["cb-dark-60"]}; }
-.qs-icon-btn:focus-visible { outline: 2px solid cornflowerblue; }
+.qs-outline-btn { background: transparent; }
+.qs-outline-btn:hover { background: ${Colors["cb-dark-60"]}; }
+.qs-outline-btn:focus-visible { outline: 2px solid cornflowerblue; }
 .qs-toggle {
   display: grid;
   place-items: center;
