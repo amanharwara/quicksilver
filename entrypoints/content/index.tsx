@@ -1,6 +1,13 @@
-import { Accessor, ComponentProps, JSX, ParentProps } from "solid-js";
+import {
+  Accessor,
+  Component,
+  ComponentProps,
+  JSX,
+  ParentProps,
+} from "solid-js";
 import { Tabs } from "wxt/browser";
 import { Message } from "../../Message";
+import { LoopIcon, MuteIcon, PauseIcon, PlayIcon } from "./icons";
 
 const letters = Array(26)
   .fill(0)
@@ -708,6 +715,45 @@ function SearchLinksAndButtons() {
   );
 }
 
+function Toggle(props: {
+  active: boolean;
+  onChange: (active: boolean) => void;
+  label: JSX.Element;
+  icon: Component<ComponentProps<"svg">>;
+}) {
+  return (
+    <label
+      classList={{
+        "qs-icon-btn": true,
+        "qs-toggle": true,
+        active: props.active,
+      }}
+    >
+      <input
+        class="sr-only"
+        type="checkbox"
+        checked={props.active}
+        onChange={(event) => {
+          props.onChange(event.target.checked);
+        }}
+      />
+      {/* <LoopIcon
+        style={{
+          width: rem(1.325),
+          height: rem(1.325),
+        }}
+      /> */}
+      {props.icon({
+        style: {
+          width: rem(1.325),
+          height: rem(1.325),
+        },
+      })}
+      <span class="sr-only">{props.label}</span>
+    </label>
+  );
+}
+
 function MediaControls(props: { media: HTMLMediaElement }) {
   const [isPlaying, setIsPlaying] = createSignal(!props.media.paused);
   const [currentTime, setCurrentTime] = createSignal(props.media.currentTime);
@@ -792,6 +838,10 @@ function MediaControls(props: { media: HTMLMediaElement }) {
       const key = getKeyRepresentation(event);
       switch (key) {
         case " ": {
+          const input = (event.target as HTMLElement).closest("input");
+          if (input && input.type !== "range") {
+            return false;
+          }
           event.preventDefault();
           toggleMediaPlay();
           return true;
@@ -881,9 +931,9 @@ function MediaControls(props: { media: HTMLMediaElement }) {
       style={{
         display: "grid",
         "grid-template-columns": "repeat(3, 1fr)",
-        "grid-template-rows": "repeat(3, 1fr)",
-        gap: rem(0.625),
-        padding: rem(0.75),
+        "grid-template-rows": "repeat(3, auto)",
+        gap: rem(0.5),
+        padding: rem(0.875),
       }}
       tabIndex={-1}
     >
@@ -932,19 +982,20 @@ function MediaControls(props: { media: HTMLMediaElement }) {
           gap: rem(0.5),
           "grid-column": "1 / 2",
           "grid-row": "3",
-          "place-self": "start",
+          "justify-self": "start",
+          "align-self": "center",
         }}
       >
-        <label>
-          <input
-            type="checkbox"
-            checked={muted()}
-            onChange={(event) => {
-              props.media.muted = event.target.checked;
-            }}
-          />
-          Muted
-        </label>
+        <Toggle
+          active={muted()}
+          onChange={(muted) => (props.media.muted = muted)}
+          icon={MuteIcon}
+          label={
+            <Show when={muted()} fallback={"Mute"}>
+              Unmute
+            </Show>
+          }
+        />
         <input
           type="range"
           step={0.05}
@@ -959,21 +1010,40 @@ function MediaControls(props: { media: HTMLMediaElement }) {
         />
       </div>
       <button
+        class="qs-icon-btn"
         style={{
+          display: "grid",
+          "place-items": "center",
           "grid-column": "2 / 3",
           "grid-row": "3",
           "place-self": "center",
+          ...ButtonDefaultStyles,
+          color: Colors["cb-light-90"],
+          padding: rem(0.25),
+          border: `2px solid ${Colors["cb-dark-50"]}`,
+          "border-radius": rem(0.25),
         }}
         onClick={toggleMediaPlay}
       >
-        <div
-          role="presentation"
-          classList={{
-            "qs-pause-icon": isPlaying(),
-            "qs-play-icon": !isPlaying(),
-          }}
-        />
-        <span>
+        <Show
+          when={isPlaying()}
+          fallback={
+            <PlayIcon
+              style={{
+                width: rem(1.325),
+                height: rem(1.325),
+              }}
+            />
+          }
+        >
+          <PauseIcon
+            style={{
+              width: rem(1.325),
+              height: rem(1.325),
+            }}
+          />
+        </Show>
+        <span class="sr-only">
           <Show when={isPlaying()} fallback={"Play"}>
             Pause
           </Show>
@@ -986,19 +1056,20 @@ function MediaControls(props: { media: HTMLMediaElement }) {
           gap: rem(0.5),
           "grid-row": "3",
           "grid-column": "3",
-          "place-self": "end",
+          "justify-self": "end",
+          "align-self": "center",
         }}
       >
-        <label>
-          <input
-            type="checkbox"
-            checked={loop()}
-            onChange={(event) => {
-              setLoop((props.media.loop = event.target.checked));
-            }}
-          />
-          Loop
-        </label>
+        <Toggle
+          active={loop()}
+          onChange={(loop) => setLoop((props.media.loop = loop))}
+          icon={LoopIcon}
+          label={
+            <Show when={loop()} fallback={"Loop"}>
+              Disable looping
+            </Show>
+          }
+        />
         <div>{playbackRate()}x</div>
       </div>
     </Popup>
@@ -1739,16 +1810,32 @@ function Root() {
 .qs-list-item:hover, .qs-list-item.active { --is-hovered: 1; background: ${
         Colors["cb-dark-60"]
       }; }
+.qs-icon-btn { background: transparent; }
+.qs-icon-btn:hover { background: ${Colors["cb-dark-60"]}; }
+.qs-icon-btn:focus-visible { outline: 2px solid cornflowerblue; }
+.qs-toggle {
+  display: grid;
+  place-items: center;
+  padding: ${rem(0.25)};
+  border: 2px solid ${Colors["cb-dark-50"]};
+  border-radius: ${rem(0.25)}
+}
+.qs-toggle.active {
+  background: ${Colors["cb-dark-50"]};
+}
+.qs-toggle:has(input:focus-visible) {
+  outline: 2px solid cornflowerblue;
+}
 .sr-only {
-position: absolute;
-width: 1px;
-height: 1px;
-padding: 0;
-margin: -1px;
-overflow: hidden;
-clip: rect(0, 0, 0, 0);
-white-space: nowrap;
-border-width: 0;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }
 `}</style>
     </mainContext.Provider>
