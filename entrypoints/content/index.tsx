@@ -1,11 +1,4 @@
-import {
-  Accessor,
-  children,
-  ComponentProps,
-  JSX,
-  ParentProps,
-  Setter,
-} from "solid-js";
+import { Accessor, ComponentProps, JSX, ParentProps } from "solid-js";
 import { Tabs } from "wxt/browser";
 import { Message } from "../../Message";
 
@@ -81,6 +74,13 @@ function createElement(
     element.innerText = text;
   }
   return element;
+}
+
+function getKeyRepresentation(event: KeyboardEvent) {
+  const { ctrlKey, shiftKey, altKey, key } = event;
+  return `${ctrlKey ? "C-" : ""}${shiftKey ? "S-" : ""}${
+    altKey ? "A-" : ""
+  }${key.toLowerCase()}`;
 }
 
 enum HighlightState {
@@ -201,11 +201,17 @@ function Kbd(props: ParentProps) {
   return <kbd style={KbdStyles}>{props.children}</kbd>;
 }
 
+type KeyEventListener = (event: KeyboardEvent) => boolean;
+type KeyEventListenerCleanup = () => void;
+
 const mainContext = createContext<{
   shouldShowDebugInfo: Accessor<boolean>;
   toggleDebugInfo: () => void;
   hideAllPopups: () => void;
   resetState: (hidePopups: boolean) => void;
+  registerKeydownListener: (
+    listener: KeyEventListener
+  ) => KeyEventListenerCleanup;
 }>();
 
 function handleElementInteraction(
@@ -513,7 +519,14 @@ function ListSearch<Item extends unknown>(props: {
               return prev;
             });
             break;
+          default:
+            break;
+        }
+      }}
+      onKeyUp={(event) => {
+        switch (event.key) {
           case "Enter": {
+            const item = filtered()[focusedIndex()];
             if (item) {
               props.handleSelect(item, event);
             }
@@ -695,9 +708,280 @@ function SearchLinksAndButtons() {
   );
 }
 
-function VideoList() {
+function VideoControls(props: { video: HTMLVideoElement }) {
+  const [isPlaying, setIsPlaying] = createSignal(false);
+  const [currentTime, setCurrentTime] = createSignal(props.video.currentTime);
+  const [duration, setDuration] = createSignal(props.video.duration);
+  const [playbackRate, setPlaybackRate] = createSignal(
+    props.video.playbackRate
+  );
+  const [volume, setVolume] = createSignal(props.video.volume);
+  const [muted, setMuted] = createSignal(props.video.muted);
+  const [loop, setLoop] = createSignal(props.video.loop);
+
+  let popup: HTMLDivElement | undefined;
+
   const context = useContext(mainContext);
 
+  onMount(() => {
+    popup?.focus();
+
+    const controller = new AbortController();
+
+    props.video.addEventListener(
+      "play",
+      () => {
+        setIsPlaying(true);
+        setLoop(props.video.loop);
+      },
+      {
+        signal: controller.signal,
+      }
+    );
+
+    props.video.addEventListener(
+      "pause",
+      () => {
+        setIsPlaying(false);
+        setLoop(props.video.loop);
+      },
+      {
+        signal: controller.signal,
+      }
+    );
+
+    props.video.addEventListener(
+      "durationchange",
+      () => setDuration(props.video.duration),
+      {
+        signal: controller.signal,
+      }
+    );
+
+    props.video.addEventListener(
+      "ratechange",
+      () => setPlaybackRate(props.video.playbackRate),
+      {
+        signal: controller.signal,
+      }
+    );
+
+    props.video.addEventListener(
+      "timeupdate",
+      () => setCurrentTime(props.video.currentTime),
+      {
+        signal: controller.signal,
+      }
+    );
+
+    props.video.addEventListener(
+      "volumechange",
+      () => {
+        setVolume(props.video.volume);
+        setMuted(props.video.muted);
+      },
+      {
+        signal: controller.signal,
+      }
+    );
+
+    //
+    // maybe allow registering actions instead of having to handle keydown directly?
+    //
+    const cleanupKeydownListener = context!.registerKeydownListener((event) => {
+      const key = getKeyRepresentation(event);
+      switch (key) {
+        case " ":
+          event.preventDefault();
+          toggleVideoPlay();
+          return true;
+        case "S-<": {
+          event.preventDefault();
+          const currentRate = props.video.playbackRate;
+          props.video.playbackRate = Math.max(currentRate - 0.25, 0);
+          return true;
+        }
+        case "S->": {
+          event.preventDefault();
+          const currentRate = props.video.playbackRate;
+          props.video.playbackRate = Math.min(currentRate + 0.25, 2.5);
+          return true;
+        }
+        case "m": {
+          event.preventDefault();
+          props.video.muted = !props.video.muted;
+          return true;
+        }
+        default:
+          break;
+      }
+      return false;
+    });
+
+    onCleanup(() => {
+      controller.abort();
+      cleanupKeydownListener();
+    });
+  });
+
+  const date = new Date();
+
+  const formattedCurrentTime = createMemo(() => {
+    date.setHours(0, 0, currentTime());
+    return date.toLocaleTimeString("en-US", {
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  });
+
+  const formattedDurationTime = createMemo(() => {
+    date.setHours(0, 0, duration());
+    return date.toLocaleTimeString("en-US", {
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  });
+
+  function toggleVideoPlay() {
+    const video = props.video;
+    if (isPlaying()) {
+      video.pause();
+    } else {
+      video.play();
+    }
+  }
+
+  return (
+    <Popup
+      ref={popup}
+      style={{
+        display: "grid",
+        "grid-template-columns": "repeat(3, 1fr)",
+        "grid-template-rows": "repeat(3, 1fr)",
+        gap: rem(0.625),
+        padding: rem(0.75),
+      }}
+      tabIndex={-1}
+    >
+      <div
+        style={{
+          "grid-row": "1",
+          "grid-column": "1 / 4",
+          "font-weight": "bold",
+          "text-align": "center",
+          "place-self": "center",
+        }}
+      >
+        {props.video.src}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          "align-items": "center",
+          gap: rem(0.5),
+          "grid-row": "2",
+          "grid-column": "1 / 4",
+        }}
+      >
+        <div style={{ "font-variant-numeric": "tabular-nums" }}>
+          {formattedCurrentTime()}
+        </div>
+        <input
+          type="range"
+          step={0.01}
+          value={currentTime()}
+          max={duration()}
+          style={{ "flex-grow": "1" }}
+          onChange={(event) => {
+            const target = event.target;
+            props.video.currentTime = parseFloat(target.value);
+          }}
+        />
+        <div style={{ "font-variant-numeric": "tabular-nums" }}>
+          {formattedDurationTime()}
+        </div>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          "align-items": "center",
+          gap: rem(0.5),
+          "grid-column": "1 / 2",
+          "grid-row": "3",
+          "place-self": "start",
+        }}
+      >
+        <label>
+          <input
+            type="checkbox"
+            checked={muted()}
+            onChange={(event) => {
+              props.video.muted = event.target.checked;
+            }}
+          />
+          Muted
+        </label>
+        <input
+          type="range"
+          step={0.05}
+          value={volume()}
+          max={1}
+          style={{ "flex-grow": "1" }}
+          onChange={(event) => {
+            const target = event.target;
+            props.video.volume = parseFloat(target.value);
+          }}
+          disabled={muted()}
+        />
+      </div>
+      <button
+        style={{
+          "grid-column": "2 / 3",
+          "grid-row": "3",
+          "place-self": "center",
+        }}
+        onClick={toggleVideoPlay}
+      >
+        <div
+          role="presentation"
+          classList={{
+            "qs-pause-icon": isPlaying(),
+            "qs-play-icon": !isPlaying(),
+          }}
+        />
+        <span>
+          <Show when={isPlaying()} fallback={"Play"}>
+            Pause
+          </Show>
+        </span>
+      </button>
+      <div
+        style={{
+          display: "flex",
+          "align-items": "center",
+          gap: rem(0.5),
+          "grid-row": "3",
+          "grid-column": "3",
+          "place-self": "end",
+        }}
+      >
+        <label>
+          <input
+            type="checkbox"
+            checked={loop()}
+            onChange={(event) => {
+              setLoop((props.video.loop = event.target.checked));
+            }}
+          />
+          Loop
+        </label>
+        <div>{playbackRate()}x</div>
+      </div>
+    </Popup>
+  );
+}
+
+function VideoList() {
   const videos: HTMLVideoElement[] = [];
   for (const video of document.querySelectorAll("video")) {
     videos.push(video);
@@ -706,101 +990,22 @@ function VideoList() {
   const [selectedVideo, setSelectedVideo] =
     createSignal<HTMLVideoElement | null>(null);
 
-  const [showPlaybackRatePopup, setShowPlaybackRatePopup] = createSignal(false);
-
-  const playbackRates = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-
-  const selectedItemActions = [
-    {
-      desc: "Play/pause",
-      fn: () => {
-        const video = selectedVideo();
-        if (!video) return;
-        if (video.paused) video.play();
-        else video.pause();
-      },
-    },
-    {
-      desc: "Change playback rate",
-      fn: () => {
-        setShowPlaybackRatePopup(true);
-      },
-    },
-    {
-      desc: "Scroll into view",
-      fn: () => {
-        const video = selectedVideo();
-        if (!video) return;
-        video.scrollIntoView();
-      },
-    },
-  ];
-
-  let videoListPopup: HTMLDivElement | undefined;
-  let selectedVideoPopup: HTMLDivElement | undefined;
-
   return (
     <>
-      <Popup
-        ref={videoListPopup}
-        style={{
-          visibility: !!selectedVideo() ? "hidden" : undefined,
-        }}
-      >
-        <ListSearch
-          items={videos}
-          itemContent={(item) => <>{item.src}</>}
-          filter={(video, lq) => video.src.toLowerCase().includes(lq)}
-          handleSelect={function selectVideo(video) {
-            setSelectedVideo(video);
-          }}
-        />
-      </Popup>
-      <Show when={selectedVideo()}>
-        <Popup ref={selectedVideoPopup}>
+      <Show when={!selectedVideo()}>
+        <Popup>
           <ListSearch
-            items={selectedItemActions}
-            itemContent={({ desc }) => (
-              <span style={{ "font-weight": "bold" }}>{desc}</span>
-            )}
-            filter={({ desc }, lq) => desc.toLowerCase().includes(lq)}
-            handleSelect={function selectVideoOption({ fn }) {
-              fn();
-            }}
-            handleKeyDown={(_, event) => {
-              if (event.key !== "Escape") return false;
-              event.preventDefault();
-              setSelectedVideo(null);
-              videoListPopup?.querySelector("input")?.focus();
-              return true;
+            items={videos}
+            itemContent={(item) => <>{item.src}</>}
+            filter={(video, lq) => video.src.toLowerCase().includes(lq)}
+            handleSelect={function selectVideo(video) {
+              setSelectedVideo(video);
             }}
           />
         </Popup>
-        <Show when={showPlaybackRatePopup()}>
-          <Popup>
-            <ListSearch
-              items={playbackRates}
-              itemContent={(rate) => (
-                <span style={{ "font-weight": "bold" }}>{rate}</span>
-              )}
-              filter={() => true}
-              handleSelect={(rate) => {
-                const video = selectedVideo();
-                if (!video) return;
-                video.playbackRate = rate;
-                setShowPlaybackRatePopup(false);
-                selectedVideoPopup?.querySelector("input")?.focus();
-              }}
-              handleKeyDown={(_, event) => {
-                if (event.key !== "Escape") return false;
-                event.preventDefault();
-                setShowPlaybackRatePopup(false);
-                selectedVideoPopup?.querySelector("input")?.focus();
-                return true;
-              }}
-            />
-          </Popup>
-        </Show>
+      </Show>
+      <Show when={selectedVideo()}>
+        <VideoControls video={selectedVideo()!} />
       </Show>
     </>
   );
@@ -1288,7 +1493,13 @@ function Root() {
       desc: "Highlight links to open in new tab",
       fn: highlightLinksToOpenInNewTab,
     },
-    "S-?": { desc: "Show help", fn: () => setShowActionHelp((show) => !show) },
+    "S-?": {
+      desc: "Show help",
+      fn: () => {
+        hideAllPopups();
+        setShowActionHelp((show) => !show);
+      },
+    },
     p: { desc: "Toggle passthrough", fn: togglePassthrough },
     "C-p": { desc: "Show command palette", fn: toggleCommandPalette },
   };
@@ -1324,7 +1535,28 @@ function Root() {
     state.highlightInput = "";
   }
 
-  const keydownListener = (event: KeyboardEvent) => {
+  const keydownListeners = new Set<KeyEventListener>();
+
+  function registerKeydownListener(
+    listener: KeyEventListener
+  ): KeyEventListenerCleanup {
+    keydownListeners.add(listener);
+    return () => {
+      keydownListeners.delete(listener);
+    };
+  }
+
+  const mainKeydownListener = (event: KeyboardEvent) => {
+    if (keydownListeners.size > 0) {
+      const listeners = Array.from(keydownListeners);
+      for (let i = listeners.length - 1; i >= 0; i--) {
+        const listener = listeners[i];
+        if (listener(event)) {
+          return;
+        }
+      }
+    }
+
     const { key, ctrlKey, shiftKey, altKey } = event;
 
     if (key === "Control" || key === "Shift" || key === "Alt") {
@@ -1358,9 +1590,7 @@ function Root() {
       return;
     }
 
-    const keyRepresentation = `${ctrlKey ? "C-" : ""}${shiftKey ? "S-" : ""}${
-      altKey ? "A-" : ""
-    }${key.toLowerCase()}`;
+    const keyRepresentation = getKeyRepresentation(event);
 
     if (isPassthrough() && keyRepresentation !== "p") {
       return;
@@ -1396,7 +1626,7 @@ function Root() {
   onMount(() => {
     document.documentElement.addEventListener("click", clickListener);
     document.body.addEventListener("focusin", focusListener);
-    document.body.addEventListener("keydown", keydownListener, {
+    document.body.addEventListener("keydown", mainKeydownListener, {
       capture: true,
     });
   });
@@ -1404,7 +1634,7 @@ function Root() {
   onCleanup(() => {
     document.documentElement.removeEventListener("click", clickListener);
     document.body.removeEventListener("focusin", focusListener);
-    document.body.removeEventListener("keydown", keydownListener, {
+    document.body.removeEventListener("keydown", mainKeydownListener, {
       capture: true,
     });
   });
@@ -1416,6 +1646,7 @@ function Root() {
         toggleDebugInfo: () => setShouldShowDebugInfo((b) => !b),
         hideAllPopups,
         resetState,
+        registerKeydownListener,
       }}
     >
       <div
@@ -1478,10 +1709,22 @@ function Root() {
   border: 4px solid rgba(0,0,0,0);
   background-clip: padding-box;
 }
+.qs-popup:focus-visible { outline: 2px solid cornflowerblue; }
 .qs-list-item { --is-hovered: 0; background: transparent; }
 .qs-list-item:hover, .qs-list-item.active { --is-hovered: 1; background: ${
         Colors["cb-dark-60"]
       }; }
+.sr-only {
+position: absolute;
+width: 1px;
+height: 1px;
+padding: 0;
+margin: -1px;
+overflow: hidden;
+clip: rect(0, 0, 0, 0);
+white-space: nowrap;
+border-width: 0;
+}
 `}</style>
     </mainContext.Provider>
   );
