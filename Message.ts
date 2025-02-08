@@ -9,6 +9,10 @@ export type Message =
       tabId: Tabs.Tab["id"];
     }
   | {
+      type: "open-new-tab-in-background";
+      url: string;
+    }
+  | {
       type: "close-tab";
       tabId: Tabs.Tab["id"];
     };

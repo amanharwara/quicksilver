@@ -20,5 +20,11 @@ export default defineBackground(() => {
     if (message.type === "close-tab" && message.tabId !== undefined) {
       browser.tabs.remove(message.tabId);
     }
+    if (message.type === "open-new-tab-in-background" && !!message.url) {
+      browser.tabs.create({
+        active: false,
+        url: message.url,
+      });
+    }
   });
 });

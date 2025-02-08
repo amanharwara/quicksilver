@@ -251,7 +251,10 @@ function handleElementInteraction(
         return;
       }
       const href = element.href;
-      window.open(href, "_blank");
+      browser.runtime.sendMessage({
+        type: "open-new-tab-in-background",
+        url: href,
+      } satisfies Message);
       break;
     }
   }
