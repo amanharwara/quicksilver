@@ -21,9 +21,15 @@ export default defineBackground(() => {
       browser.tabs.remove(message.tabId);
     }
     if (message.type === "open-new-tab-in-background" && !!message.url) {
+      const [activeTab] = await browser.tabs.query({
+        active: true,
+        lastFocusedWindow: true,
+      });
+      const activeTabIndex = activeTab.index;
       browser.tabs.create({
         active: false,
         url: message.url,
+        index: activeTabIndex + 1,
       });
     }
   });
