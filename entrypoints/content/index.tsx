@@ -14,6 +14,7 @@ import {
   PauseIcon,
   PlayIcon,
 } from "./icons";
+import { log } from "../../Util";
 
 const mainContext = createContext<{
   shouldShowDebugInfo: Accessor<boolean>;
@@ -51,15 +52,6 @@ export function* twoCharIDGenerator() {
       yield `${letter}${l2}`;
     }
   }
-}
-
-function log(...args: any[]) {
-  if (!import.meta.env.DEV) {
-    return;
-  }
-  console.group("quicksilver");
-  console.log(...args);
-  console.groupEnd();
 }
 
 function isElementOverflowing(element: HTMLElement) {
@@ -1771,6 +1763,13 @@ function Root() {
       desc: "List all tabs",
       fn: () => setShowTabList((show) => !show),
     },
+    "n t": {
+      desc: "New tab to right",
+      fn: () =>
+        browser.runtime.sendMessage({
+          type: "open-new-tab-next-to-current",
+        } satisfies Message),
+    },
     f: {
       desc: "Highlight links, buttons and inputs",
       fn: highlightLinksButtonsAndInputs,
@@ -2038,7 +2037,7 @@ export default defineContentScript({
   matchOriginAsFallback: true,
   cssInjectionMode: "ui",
   main(ctx) {
-    log("Loaded content script");
+    log("info", "Loaded content script");
 
     const ui = createIntegratedUi(ctx, {
       position: "inline",

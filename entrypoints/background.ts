@@ -1,36 +1,60 @@
 import { Message } from "../Message";
+import { log } from "../Util";
 
 export default defineBackground(() => {
   browser.runtime.onMessage.addListener(async (message: Message) => {
-    if (message.type === "get-all-tabs") {
-      const allTabs = await browser.tabs.query({
-        windowId: browser.windows.WINDOW_ID_CURRENT,
-      });
-      const [activeTab] = await browser.tabs.query({
-        active: true,
-        lastFocusedWindow: true,
-      });
-      if (activeTab.id) {
-        return allTabs;
+    switch (message.type) {
+      case "get-all-tabs": {
+        const allTabs = await browser.tabs.query({
+          windowId: browser.windows.WINDOW_ID_CURRENT,
+        });
+        const [activeTab] = await browser.tabs.query({
+          active: true,
+          lastFocusedWindow: true,
+        });
+        if (activeTab.id) {
+          return allTabs;
+        }
+        break;
       }
-    }
-    if (message.type === "activate-tab" && message.tabId !== undefined) {
-      browser.tabs.update(message.tabId, { active: true });
-    }
-    if (message.type === "close-tab" && message.tabId !== undefined) {
-      browser.tabs.remove(message.tabId);
-    }
-    if (message.type === "open-new-tab-in-background" && !!message.url) {
-      const [activeTab] = await browser.tabs.query({
-        active: true,
-        lastFocusedWindow: true,
-      });
-      const activeTabIndex = activeTab.index;
-      browser.tabs.create({
-        active: false,
-        url: message.url,
-        index: activeTabIndex + 1,
-      });
+      case "activate-tab": {
+        if (!message.tabId) break;
+        browser.tabs.update(message.tabId, { active: true });
+        break;
+      }
+      case "close-tab": {
+        if (!message.tabId) break;
+        browser.tabs.remove(message.tabId);
+        break;
+      }
+      case "open-new-tab-in-background": {
+        const [activeTab] = await browser.tabs.query({
+          active: true,
+          lastFocusedWindow: true,
+        });
+        const activeTabIndex = activeTab.index;
+        browser.tabs.create({
+          active: false,
+          url: message.url,
+          index: activeTabIndex + 1,
+        });
+        break;
+      }
+      case "open-new-tab-next-to-current": {
+        const [activeTab] = await browser.tabs.query({
+          active: true,
+          lastFocusedWindow: true,
+        });
+        const activeTabIndex = activeTab.index;
+        browser.tabs.create({
+          active: true,
+          index: activeTabIndex + 1,
+        });
+        break;
+      }
+      default:
+        log("error", "Unknown message type", message);
+        break;
     }
   });
 });

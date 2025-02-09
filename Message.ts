@@ -13,6 +13,9 @@ export type Message =
       url: string;
     }
   | {
+      type: "open-new-tab-next-to-current";
+    }
+  | {
       type: "close-tab";
       tabId: Tabs.Tab["id"];
     };
