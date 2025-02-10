@@ -13,6 +13,7 @@ import {
   MuteIcon,
   PauseIcon,
   PlayIcon,
+  SlidersHorizontalIcon,
 } from "./icons";
 import { log } from "../../Util";
 
@@ -677,21 +678,17 @@ function SearchLinksAndButtons() {
           itemContent={(item) => (
             <>
               <div
+                class="qs-text-ellipsis"
                 style={{
                   "font-weight": "bold",
-                  "white-space": "nowrap",
-                  "text-overflow": "ellipsis",
-                  overflow: "hidden",
                 }}
               >
                 {item.text.trim().length > 0 ? item.text.trim() : "No title"}
               </div>
               <div
+                class="qs-text-ellipsis"
                 style={{
                   "font-size": "smaller",
-                  "white-space": "nowrap",
-                  "text-overflow": "ellipsis",
-                  overflow: "hidden",
                 }}
               >
                 <Show when={item.href} fallback={"<button>"}>
@@ -708,7 +705,9 @@ function SearchLinksAndButtons() {
           <ListSearch
             items={selectedItemActions}
             itemContent={({ desc }) => (
-              <span style={{ "font-weight": "bold" }}>{desc}</span>
+              <span class="qs-text-ellipsis" style={{ "font-weight": "bold" }}>
+                {desc}
+              </span>
             )}
             filter={({ desc }, lq) => desc.toLowerCase().includes(lq)}
             handleSelect={({ fn }) => {
@@ -853,6 +852,9 @@ function MediaControls(props: { media: HTMLMediaElement }) {
   const [volume, setVolume] = createSignal(props.media.volume);
   const [muted, setMuted] = createSignal(props.media.muted);
   const [loop, setLoop] = createSignal(props.media.loop);
+  const [showNativeControls, setShowNativeControls] = createSignal(
+    props.media.controls
+  );
 
   const [isPlaybackRateMenuOpen, setIsPlaybackRateMenuOpen] =
     createSignal(false);
@@ -1244,6 +1246,18 @@ function MediaControls(props: { media: HTMLMediaElement }) {
           )}
         </Show>
         <Toggle
+          active={showNativeControls()}
+          onChange={(controls) =>
+            setShowNativeControls((props.media.controls = controls))
+          }
+          icon={SlidersHorizontalIcon}
+          label={
+            <Show when={showNativeControls()} fallback={"Show native controls"}>
+              Hide native controls
+            </Show>
+          }
+        />
+        <Toggle
           active={loop()}
           onChange={(loop) => setLoop((props.media.loop = loop))}
           icon={LoopIcon}
@@ -1274,7 +1288,9 @@ function MediaList() {
         <Popup>
           <ListSearch
             items={mediaElements}
-            itemContent={(item) => <>{item.src}</>}
+            itemContent={(item) => (
+              <span class="qs-text-ellipsis">{item.src}</span>
+            )}
             filter={(media, lq) => media.src.toLowerCase().includes(lq)}
             handleSelect={function selectMedia(media) {
               setSelectedMedia(media);
@@ -1340,14 +1356,14 @@ function TabList() {
           items={tabs()!}
           itemContent={(tab) => (
             <>
-              <div style={{ "font-weight": "bold" }}>{tab.title}</div>
+              <div class="qs-text-ellipsis" style={{ "font-weight": "bold" }}>
+                {tab.title}
+              </div>
               <div
+                class="qs-text-ellipsis"
                 style={{
                   "font-size": "smaller",
                   "grid-row": "2",
-                  "white-space": "nowrap",
-                  overflow: "hidden",
-                  "text-overflow": "ellipsis",
                 }}
               >
                 {tab.url}
@@ -1370,7 +1386,9 @@ function TabList() {
           <ListSearch
             items={tabActions}
             itemContent={(item) => (
-              <span style={{ "font-weight": "bold" }}>{item.name}</span>
+              <span class="qs-text-ellipsis" style={{ "font-weight": "bold" }}>
+                {item.name}
+              </span>
             )}
             filter={({ name }, lq) => name.toLowerCase().includes(lq)}
             handleSelect={(action) => {
@@ -1464,7 +1482,7 @@ function CommandPalette(props: {
                 <Kbd>{item.key}</Kbd>
               </div>
             </Show>
-            <div>{item.desc}</div>
+            <div class="qs-text-ellipsis">{item.desc}</div>
           </div>
         )}
         filter={({ key, desc }, lowercaseQuery) => {
@@ -1792,9 +1810,7 @@ function Root() {
   const actionKeyCombinations = Object.keys(actions);
 
   const actionUniqueKeys = new Set(
-    actionKeyCombinations
-      .map((kc) => kc.replace(/[CSA]-/g, "").split(" "))
-      .flat()
+    actionKeyCombinations.flatMap((kc) => kc.replace(/[CSA]-/g, "").split(" "))
   );
 
   const clickListener = (event: MouseEvent) => {
@@ -1984,6 +2000,7 @@ function Root() {
         />
       </Show>
       <style>{`
+.qs-text-ellipsis { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
 .qs-input { outline: 0; }
 .qs-input:focus-visible { outline: 2px solid cornflowerblue; }
 .qs-popup > * { min-height: 0; }
