@@ -1098,7 +1098,7 @@ function MediaControls(props: { media: HTMLMediaElement }) {
       >
         <Toggle
           active={muted()}
-          onChange={(muted) => (props.media.muted = muted)}
+          onChange={() => (props.media.muted = !props.media.muted)}
           icon={MuteIcon}
           label={
             <Show when={muted()} fallback={"Mute"}>
@@ -1247,8 +1247,10 @@ function MediaControls(props: { media: HTMLMediaElement }) {
         </Show>
         <Toggle
           active={showNativeControls()}
-          onChange={(controls) =>
-            setShowNativeControls((props.media.controls = controls))
+          onChange={() =>
+            setShowNativeControls(
+              (props.media.controls = !props.media.controls)
+            )
           }
           icon={SlidersHorizontalIcon}
           label={
@@ -1259,7 +1261,7 @@ function MediaControls(props: { media: HTMLMediaElement }) {
         />
         <Toggle
           active={loop()}
-          onChange={(loop) => setLoop((props.media.loop = loop))}
+          onChange={() => setLoop((props.media.loop = !props.media.loop))}
           icon={LoopIcon}
           label={
             <Show when={loop()} fallback={"Loop"}>
