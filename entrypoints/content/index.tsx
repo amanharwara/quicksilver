@@ -1737,7 +1737,7 @@ function Root() {
   function highlightLinksButtonsAndInputs() {
     if (state.highlightState === HighlightState.None) {
       state.highlightInteractionMode = ElementInteractionMode.Click;
-      highlightElementsBySelector("a,button,input");
+      highlightElementsBySelector(`a,button,input,[role^="menuitem"]`);
     }
   }
 
