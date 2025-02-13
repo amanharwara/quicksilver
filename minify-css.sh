@@ -10,7 +10,9 @@ if [ ! -d $DIST ]; then
 	mkdir -p $DIST
 fi
 
-for file in ./*css
+for file in ./src/*.css
 do
-	cat $file | tr -d '\n' | sed -E 's/\s?(\{|;|:)\s+/\1/g' > $DIST/$file
+	if [ -f $file ]; then
+		cat $file | tr -d '\n' | sed -E 's/\s?(\{|;|:)\s+/\1/g' > $DIST/"${file#./src/}"
+	fi
 done

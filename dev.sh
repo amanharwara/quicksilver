@@ -6,7 +6,7 @@ BROWSER="${1:-"chromium"}"
 
 PID_LIST=""
 
-python3 -m http.server 5500 -d ./test & pid=$!
+python3 -m http.server 5500 -d ./test > /dev/null 2>&1 & pid=$!
 PID_LIST+=" $pid"
 
 TEMP_PROFILE=`mktemp -d`
