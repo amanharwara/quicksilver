@@ -1791,7 +1791,6 @@ function Root() {
   }
 
   function startVisualMode() {
-    console.time("startVizMode");
     const selection = window.getSelection();
     if (selection) {
       selection.removeAllRanges();
@@ -1812,6 +1811,26 @@ function Root() {
       rect: DOMRect;
     }[] = [];
     while (node) {
+      const parentElement = node.parentElement;
+      if (!parentElement) {
+        node = walk.nextNode();
+        continue;
+      }
+
+      const parentRect = parentElement.getBoundingClientRect();
+      const isParentInViewport =
+        parentRect.width > 0 &&
+        parentRect.height > 0 &&
+        parentRect.top >= 0 &&
+        parentRect.top < windowHeight;
+      const isParentVisible = parentElement.checkVisibility({
+        checkOpacity: true,
+      });
+      if (!isParentInViewport || !isParentVisible) {
+        node = walk.nextNode();
+        continue;
+      }
+
       const rangeToCheckInitialVisibility = new Range();
       rangeToCheckInitialVisibility.selectNodeContents(node);
       const rect = rangeToCheckInitialVisibility.getBoundingClientRect();
@@ -1826,7 +1845,6 @@ function Root() {
       }
 
       const segmented = segmenter.segment(node.nodeValue!);
-      // const segments: string[] = [];
       for (const segment of segmented) {
         if (!segment.isWordLike) {
           continue;
@@ -1846,26 +1864,27 @@ function Root() {
           continue;
         }
         ranges.push({ range: segmentRange, rect });
-        // segments.push(segment.segment);
       }
       node = walk.nextNode();
     }
-    const idGen = twoCharIDGenerator();
-    for (let i = 0; i < ranges.length; i++) {
-      const range = ranges[i];
-      if (!range) continue;
-      const { rect } = range;
-      const id = idGen.next().value;
-      const highlight = createElement("div", {
-        styles: {
-          ...HighlightStyles,
-          translate: `${rect.x}px ${rect.y}px`,
-        },
-        text: id as string,
-      });
-      highlightsContainer?.append(highlight);
+    if (ranges.length > 0) {
+      const idGen = twoCharIDGenerator();
+      for (let i = 0; i < ranges.length; i++) {
+        const range = ranges[i];
+        if (!range) continue;
+        const { rect } = range;
+        const id = idGen.next().value;
+        const highlight = createElement("div", {
+          styles: {
+            ...HighlightStyles,
+            translate: `${rect.x}px ${rect.y}px`,
+            fontSize: rem(0.75),
+          },
+          text: id as string,
+        });
+        highlightsContainer?.append(highlight);
+      }
     }
-    console.timeEnd("startVizMode");
   }
 
   const actions: Actions = {
