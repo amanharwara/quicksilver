@@ -1784,6 +1784,90 @@ function Root() {
     setShowCommandPalette(true);
   }
 
+  function openNewTabToRight() {
+    browser.runtime.sendMessage({
+      type: "open-new-tab-next-to-current",
+    } satisfies Message);
+  }
+
+  function startVisualMode() {
+    console.time("startVizMode");
+    const selection = window.getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+    }
+    const segmenter = new Intl.Segmenter(
+      document.documentElement.lang || "en",
+      { granularity: "word" },
+    );
+    const walk = document.createTreeWalker(
+      document.body,
+      NodeFilter.SHOW_TEXT,
+      null,
+    );
+    let node = walk.nextNode();
+    const windowHeight = window.innerHeight;
+    const ranges: {
+      range: Range;
+      rect: DOMRect;
+    }[] = [];
+    while (node) {
+      const rangeToCheckInitialVisibility = new Range();
+      rangeToCheckInitialVisibility.selectNodeContents(node);
+      const rect = rangeToCheckInitialVisibility.getBoundingClientRect();
+      const isVisible =
+        rect.width > 0 &&
+        rect.height > 0 &&
+        rect.top >= 0 &&
+        rect.top < windowHeight;
+      if (!isVisible) {
+        node = walk.nextNode();
+        continue;
+      }
+
+      const segmented = segmenter.segment(node.nodeValue!);
+      // const segments: string[] = [];
+      for (const segment of segmented) {
+        if (!segment.isWordLike) {
+          continue;
+        }
+        const segmentRange = new Range();
+        const start = segment.index;
+        const end = start + segment.segment.length;
+        segmentRange.setStart(node, start);
+        segmentRange.setEnd(node, end);
+        const rect = segmentRange.getBoundingClientRect();
+        const isVisible =
+          rect.width > 0 &&
+          rect.height > 0 &&
+          rect.top >= 0 &&
+          rect.top < windowHeight;
+        if (!isVisible) {
+          continue;
+        }
+        ranges.push({ range: segmentRange, rect });
+        // segments.push(segment.segment);
+      }
+      node = walk.nextNode();
+    }
+    const idGen = twoCharIDGenerator();
+    for (let i = 0; i < ranges.length; i++) {
+      const range = ranges[i];
+      if (!range) continue;
+      const { rect } = range;
+      const id = idGen.next().value;
+      const highlight = createElement("div", {
+        styles: {
+          ...HighlightStyles,
+          translate: `${rect.x}px ${rect.y}px`,
+        },
+        text: id as string,
+      });
+      highlightsContainer?.append(highlight);
+    }
+    console.timeEnd("startVizMode");
+  }
+
   const actions: Actions = {
     k: { desc: "Scroll up", fn: scrollUp },
     j: { desc: "Scroll down", fn: scrollDown },
@@ -1806,10 +1890,7 @@ function Root() {
     },
     "n t": {
       desc: "New tab to right",
-      fn: () =>
-        browser.runtime.sendMessage({
-          type: "open-new-tab-next-to-current",
-        } satisfies Message),
+      fn: openNewTabToRight,
     },
     f: {
       desc: "Highlight links, buttons and inputs",
@@ -1828,6 +1909,7 @@ function Root() {
     },
     p: { desc: "Toggle passthrough", fn: togglePassthrough },
     "C-p": { desc: "Show command palette", fn: toggleCommandPalette },
+    v: { desc: "Visual mode", fn: startVisualMode },
   };
 
   const actionKeyCombinations = Object.keys(actions);
