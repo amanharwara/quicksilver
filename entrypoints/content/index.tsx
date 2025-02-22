@@ -23,7 +23,7 @@ const mainContext = createContext<{
   hideAllPopups: () => void;
   resetState: (hidePopups: boolean) => void;
   registerKeydownListener: (
-    listener: KeyEventListener
+    listener: KeyEventListener,
   ) => KeyEventListenerCleanup;
 }>();
 
@@ -78,7 +78,7 @@ function createElement(
     styles?: ElementStyles;
     children?: HTMLElement[];
     text?: string;
-  } = {}
+  } = {},
 ) {
   const element = document.createElement(tag);
   const { className, styles, children, text } = options;
@@ -230,7 +230,7 @@ type KeyEventListenerCleanup = () => void;
 
 function handleElementInteraction(
   element: HTMLElement,
-  mode: ElementInteractionMode
+  mode: ElementInteractionMode,
 ) {
   switch (mode) {
     case ElementInteractionMode.Click:
@@ -318,7 +318,7 @@ function ClickableItemComp(
     index: number;
     focusedIndex: number;
     children: JSX.Element;
-  } & ComponentProps<"button">
+  } & ComponentProps<"button">,
 ) {
   const [props, rest] = splitProps(allProps, [
     "index",
@@ -764,7 +764,7 @@ function PlaybackRateMenu(props: {
   const context = useMainContext();
 
   const [focusedIndex, setFocusedIndex] = createSignal(
-    playbackRates.findIndex((r) => r === props.media.playbackRate)
+    playbackRates.findIndex((r) => r === props.media.playbackRate),
   );
 
   function selectRate(rate: number) {
@@ -842,18 +842,18 @@ function PlaybackRateMenu(props: {
   );
 }
 
-function MediaControls(props: { media: HTMLMediaElement }) {
+function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
   const [isPlaying, setIsPlaying] = createSignal(!props.media.paused);
   const [currentTime, setCurrentTime] = createSignal(props.media.currentTime);
   const [duration, setDuration] = createSignal(props.media.duration);
   const [playbackRate, setPlaybackRate] = createSignal(
-    props.media.playbackRate
+    props.media.playbackRate,
   );
   const [volume, setVolume] = createSignal(props.media.volume);
   const [muted, setMuted] = createSignal(props.media.muted);
   const [loop, setLoop] = createSignal(props.media.loop);
   const [showNativeControls, setShowNativeControls] = createSignal(
-    props.media.controls
+    props.media.controls,
   );
 
   const [isPlaybackRateMenuOpen, setIsPlaybackRateMenuOpen] =
@@ -892,7 +892,7 @@ function MediaControls(props: { media: HTMLMediaElement }) {
       },
       {
         signal: controller.signal,
-      }
+      },
     );
 
     props.media.addEventListener(
@@ -903,7 +903,7 @@ function MediaControls(props: { media: HTMLMediaElement }) {
       },
       {
         signal: controller.signal,
-      }
+      },
     );
 
     props.media.addEventListener(
@@ -911,7 +911,7 @@ function MediaControls(props: { media: HTMLMediaElement }) {
       () => setDuration(props.media.duration),
       {
         signal: controller.signal,
-      }
+      },
     );
 
     props.media.addEventListener(
@@ -919,7 +919,7 @@ function MediaControls(props: { media: HTMLMediaElement }) {
       () => setPlaybackRate(props.media.playbackRate),
       {
         signal: controller.signal,
-      }
+      },
     );
 
     props.media.addEventListener(
@@ -927,7 +927,7 @@ function MediaControls(props: { media: HTMLMediaElement }) {
       () => setCurrentTime(props.media.currentTime),
       {
         signal: controller.signal,
-      }
+      },
     );
 
     props.media.addEventListener(
@@ -938,7 +938,7 @@ function MediaControls(props: { media: HTMLMediaElement }) {
       },
       {
         signal: controller.signal,
-      }
+      },
     );
 
     //
@@ -953,47 +953,61 @@ function MediaControls(props: { media: HTMLMediaElement }) {
             return false;
           }
           event.preventDefault();
+          event.stopImmediatePropagation();
           toggleMediaPlay();
           return true;
         }
         case "S-<": {
           event.preventDefault();
+          event.stopImmediatePropagation();
           const currentRate = props.media.playbackRate;
           props.media.playbackRate = Math.max(currentRate - 0.25, 0);
           return true;
         }
         case "S->": {
           event.preventDefault();
+          event.stopImmediatePropagation();
           const currentRate = props.media.playbackRate;
           props.media.playbackRate = Math.min(currentRate + 0.25, 2.5);
           return true;
         }
         case "m": {
           event.preventDefault();
+          event.stopImmediatePropagation();
           props.media.muted = !props.media.muted;
           return true;
         }
         case "arrowdown": {
           event.preventDefault();
+          event.stopImmediatePropagation();
           props.media.volume = Math.max(props.media.volume - 0.15, 0);
           return true;
         }
         case "arrowup": {
           event.preventDefault();
+          event.stopImmediatePropagation();
           props.media.volume = Math.min(props.media.volume + 0.15, 1);
           return true;
         }
         case "arrowleft": {
           event.preventDefault();
+          event.stopImmediatePropagation();
           props.media.currentTime = Math.max(props.media.currentTime - 5, 0);
           return true;
         }
         case "arrowright": {
           event.preventDefault();
+          event.stopImmediatePropagation();
           props.media.currentTime = Math.min(
             props.media.currentTime + 5,
-            props.media.duration
+            props.media.duration,
           );
+          return true;
+        }
+        case "escape": {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          props.close();
           return true;
         }
         default:
@@ -1249,7 +1263,7 @@ function MediaControls(props: { media: HTMLMediaElement }) {
           active={showNativeControls()}
           onChange={() =>
             setShowNativeControls(
-              (props.media.controls = !props.media.controls)
+              (props.media.controls = !props.media.controls),
             )
           }
           icon={SlidersHorizontalIcon}
@@ -1301,7 +1315,12 @@ function MediaList() {
         </Popup>
       </Show>
       <Show when={selectedMedia()}>
-        <MediaControls media={selectedMedia()!} />
+        <MediaControls
+          media={selectedMedia()!}
+          close={() => {
+            setSelectedMedia(null);
+          }}
+        />
       </Show>
     </>
   );
@@ -1375,7 +1394,7 @@ function TabList() {
           filter={(item, lowercaseQuery) =>
             Boolean(
               item.title?.toLowerCase().includes(lowercaseQuery) ||
-                item.url?.toLowerCase().includes(lowercaseQuery)
+                item.url?.toLowerCase().includes(lowercaseQuery),
             )
           }
           handleSelect={function selectTab(item, event) {
@@ -1465,7 +1484,7 @@ function CommandPalette(props: {
 
   function handleSelect(
     item: (typeof commands)[number],
-    event: KeyboardEvent | MouseEvent
+    event: KeyboardEvent | MouseEvent,
   ) {
     context.resetState(true);
     item.fn(event);
@@ -1490,7 +1509,7 @@ function CommandPalette(props: {
         filter={({ key, desc }, lowercaseQuery) => {
           return Boolean(
             key?.toLowerCase().includes(lowercaseQuery) ||
-              desc.toLowerCase().includes(lowercaseQuery)
+              desc.toLowerCase().includes(lowercaseQuery),
           );
         }}
         handleSelect={handleSelect}
@@ -1565,7 +1584,7 @@ function Root() {
       return;
     }
     const elementRects = Array.from(
-      elements.values().map((linkEl) => linkEl.getBoundingClientRect())
+      elements.values().map((linkEl) => linkEl.getBoundingClientRect()),
     );
     const highlightIDs = twoCharIDGenerator();
     const windowHeight = window.innerHeight;
@@ -1575,7 +1594,7 @@ function Root() {
       const elementRect = elementRects[index];
       const isInViewport =
         elementRect.top >= 0 &&
-        elementRect.bottom <= windowHeight &&
+        elementRect.top < windowHeight &&
         elementRect.width > 0 &&
         elementRect.height > 0;
       const isVisible = element.checkVisibility({
@@ -1614,7 +1633,7 @@ function Root() {
         element,
         element instanceof HTMLInputElement
           ? ElementInteractionMode.Focus
-          : state.highlightInteractionMode
+          : state.highlightInteractionMode,
       );
     }
   }
@@ -1737,7 +1756,9 @@ function Root() {
   function highlightLinksButtonsAndInputs() {
     if (state.highlightState === HighlightState.None) {
       state.highlightInteractionMode = ElementInteractionMode.Click;
-      highlightElementsBySelector(`a,button,input,[role^="menuitem"]`);
+      highlightElementsBySelector(
+        `:is(a,button,input,[role^="menuitem"],[role="button"]):not(:disabled):not([aria-disabled="true"])`,
+      );
     }
   }
 
@@ -1812,7 +1833,7 @@ function Root() {
   const actionKeyCombinations = Object.keys(actions);
 
   const actionUniqueKeys = new Set(
-    actionKeyCombinations.flatMap((kc) => kc.replace(/[CSA]-/g, "").split(" "))
+    actionKeyCombinations.flatMap((kc) => kc.replace(/[CSA]-/g, "").split(" ")),
   );
 
   const clickListener = (event: MouseEvent) => {
@@ -1841,7 +1862,7 @@ function Root() {
   const keydownListeners = new Set<KeyEventListener>();
 
   function registerKeydownListener(
-    listener: KeyEventListener
+    listener: KeyEventListener,
   ): KeyEventListenerCleanup {
     keydownListeners.add(listener);
     return () => {
@@ -1914,7 +1935,7 @@ function Root() {
 
     const input = keyInput();
     const filtered = actionKeyCombinations.filter((key) =>
-      key.startsWith(input)
+      key.startsWith(input),
     );
     const firstResult = filtered[0];
     if (filtered.length === 1 && firstResult === input) {
