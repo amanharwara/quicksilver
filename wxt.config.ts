@@ -8,6 +8,9 @@ export default defineConfig({
   },
   modules: ["@wxt-dev/module-solid"],
   runner: {
-    startUrls: ["http://localhost:5500/"],
+    startUrls: [
+      "http://localhost:5500/",
+      "https://en.wikipedia.org/wiki/Cricket",
+    ],
   },
 });

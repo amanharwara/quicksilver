@@ -105,15 +105,33 @@ function getKeyRepresentation(event: KeyboardEvent) {
   }${key.toLowerCase()}`;
 }
 
-enum HighlightState {
-  None = 0,
-  Highlighted = 1,
-}
-
 enum ElementInteractionMode {
   Click = 0,
   Focus = 1,
   OpenInNewTab = 2,
+}
+
+type WordInNode = {
+  node: Node;
+  start: number;
+  end: number;
+};
+
+type Highlight =
+  | {
+      type: "element";
+      element: HTMLElement;
+    }
+  | {
+      type: "word";
+      word: WordInNode;
+    };
+
+enum Mode {
+  Normal,
+  Highlight,
+  VisualCaret,
+  VisualRange,
 }
 
 type Actions = Record<
@@ -1520,20 +1538,33 @@ function CommandPalette(props: {
 
 function Root() {
   let highlightsContainer: HTMLDivElement | undefined;
+  let visualModeContainer: HTMLDivElement | undefined;
+
+  const wordSegmenter = new Intl.Segmenter(
+    document.documentElement.lang || "en",
+    {
+      granularity: "word",
+    },
+  );
+
+  const graphemeSegmenter = new Intl.Segmenter(
+    document.documentElement.lang || "en",
+    {
+      granularity: "grapheme",
+    },
+  );
 
   const state: {
     activeElement: HTMLElement | null;
-    keyInput: string;
-    highlightState: HighlightState;
     highlightInput: string;
     highlightInteractionMode: ElementInteractionMode;
   } = {
     activeElement: null,
-    keyInput: "",
-    highlightState: HighlightState.None,
     highlightInput: "",
     highlightInteractionMode: ElementInteractionMode.Click,
   };
+
+  const [currentMode, setCurrentMode] = createSignal(Mode.Normal);
 
   const [isPassthrough, setIsPassthrough] = createSignal(false);
   const [keyInput, setKeyInput] = createSignal("");
@@ -1556,23 +1587,32 @@ function Root() {
     setShowDebugList(false);
   }
 
-  const idToHighlightMap = new Map<string, HTMLElement>();
-  const highlightToElementMap = new WeakMap<HTMLElement, HTMLElement>();
+  const idToHighlightElementMap = new Map<string, HTMLElement>();
+  const elementToHighlightMap = new WeakMap<HTMLElement, Highlight>();
 
   function removeHighlight(id: string, highlight: HTMLElement) {
     highlight.remove();
-    idToHighlightMap.delete(id);
-    highlightToElementMap.delete(highlight);
+    idToHighlightElementMap.delete(id);
+    elementToHighlightMap.delete(highlight);
   }
 
   function clearAllHighlights() {
-    for (const [id, highlight] of idToHighlightMap) {
+    for (const [id, highlight] of idToHighlightElementMap) {
       removeHighlight(id, highlight);
     }
     if (!highlightsContainer) {
       return;
     }
     for (const child of Array.from(highlightsContainer.children)) {
+      child.remove();
+    }
+  }
+
+  function cleanupVisualModeElements() {
+    if (!visualModeContainer) {
+      return;
+    }
+    for (const child of Array.from(visualModeContainer.children)) {
       child.remove();
     }
   }
@@ -1612,38 +1652,56 @@ function Root() {
         text: id as string,
       });
       highlightsContainer?.append(highlight);
-      idToHighlightMap.set(id as string, highlight);
-      highlightToElementMap.set(highlight, element);
+      idToHighlightElementMap.set(id as string, highlight);
+      elementToHighlightMap.set(highlight, {
+        type: "element",
+        element,
+      });
       createdHighlights++;
     }
     if (createdHighlights === 0) {
       return;
     }
-    state.highlightState = HighlightState.Highlighted;
+    setCurrentMode(Mode.Highlight);
   }
 
   function handleHighlightInteraction(id: string) {
-    const highlight = idToHighlightMap.get(id);
-    if (!highlight) {
-      return;
-    }
-    const element = highlightToElementMap.get(highlight);
-    if (element) {
+    const highlightElement = idToHighlightElementMap.get(id);
+    if (!highlightElement) return;
+
+    const highlight = elementToHighlightMap.get(highlightElement);
+    if (!highlight) return;
+
+    if (highlight.type === "element") {
       handleElementInteraction(
-        element,
-        element instanceof HTMLInputElement
+        highlight.element,
+        highlight.element instanceof HTMLInputElement
           ? ElementInteractionMode.Focus
           : state.highlightInteractionMode,
       );
+    } else if (highlight.type === "word") {
+      startVisualMode(highlight.word);
     }
+  }
+
+  function startVisualMode(word: WordInNode) {
+    const selection = window.getSelection();
+    if (!selection) {
+      resetState(true);
+      return;
+    }
+
+    setCurrentMode(Mode.VisualCaret);
+    selection.setPosition(word.node, word.start);
+    selection.modify("extend", "right", "character");
   }
 
   function updateHighlightInput(key: string, event: KeyboardEvent) {
     state.highlightInput += key;
-    const ids = Array.from(idToHighlightMap.keys());
+    const ids = Array.from(idToHighlightElementMap.keys());
     const highlightInput = state.highlightInput;
     const filtered = ids.filter((id) => id.startsWith(highlightInput));
-    for (const [id, highlight] of idToHighlightMap) {
+    for (const [id, highlight] of idToHighlightElementMap) {
       if (!filtered.includes(id)) {
         removeHighlight(id, highlight);
       } else {
@@ -1657,12 +1715,12 @@ function Root() {
     if (filtered.length === 1 && firstResult === highlightInput) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      handleHighlightInteraction(firstResult);
-      state.highlightState = HighlightState.None;
+      setCurrentMode(Mode.Normal);
       state.highlightInput = "";
+      handleHighlightInteraction(firstResult);
       clearAllHighlights();
     } else if (filtered.length === 0) {
-      state.highlightState = HighlightState.None;
+      setCurrentMode(Mode.Normal);
       state.highlightInput = "";
       clearAllHighlights();
     }
@@ -1754,7 +1812,7 @@ function Root() {
   }
 
   function highlightLinksButtonsAndInputs() {
-    if (state.highlightState === HighlightState.None) {
+    if (currentMode() !== Mode.Highlight) {
       state.highlightInteractionMode = ElementInteractionMode.Click;
       highlightElementsBySelector(
         `:is(a,button,input,[role^="menuitem"],[role="button"]):not(:disabled):not([aria-disabled="true"])`,
@@ -1763,14 +1821,14 @@ function Root() {
   }
 
   function highlightLinksToOpenInNewTab() {
-    if (state.highlightState === HighlightState.None) {
+    if (currentMode() !== Mode.Highlight) {
       state.highlightInteractionMode = ElementInteractionMode.OpenInNewTab;
       highlightElementsBySelector("a");
     }
   }
 
   function highlightAllInputs() {
-    if (state.highlightState === HighlightState.None) {
+    if (currentMode() !== Mode.Highlight) {
       state.highlightInteractionMode = ElementInteractionMode.Focus;
       highlightElementsBySelector("input,textarea,[contenteditable]", false);
     }
@@ -1790,15 +1848,14 @@ function Root() {
     } satisfies Message);
   }
 
-  function startVisualMode() {
+  function highlightWordsForVisualMode() {
+    cleanupVisualModeElements();
+
     const selection = window.getSelection();
     if (selection) {
-      selection.removeAllRanges();
+      selection.empty();
     }
-    const segmenter = new Intl.Segmenter(
-      document.documentElement.lang || "en",
-      { granularity: "word" },
-    );
+
     const walk = document.createTreeWalker(
       document.body,
       NodeFilter.SHOW_TEXT,
@@ -1806,8 +1863,10 @@ function Root() {
     );
     let node = walk.nextNode();
     const windowHeight = window.innerHeight;
-    const ranges: {
-      range: Range;
+    const words: {
+      node: Node;
+      start: number;
+      end: number;
       rect: DOMRect;
     }[] = [];
     while (node) {
@@ -1844,7 +1903,7 @@ function Root() {
         continue;
       }
 
-      const segmented = segmenter.segment(node.nodeValue!);
+      const segmented = wordSegmenter.segment(node.nodeValue!);
       for (const segment of segmented) {
         if (!segment.isWordLike) {
           continue;
@@ -1863,16 +1922,21 @@ function Root() {
         if (!isVisible) {
           continue;
         }
-        ranges.push({ range: segmentRange, rect });
+        words.push({
+          node,
+          start,
+          end,
+          rect,
+        });
       }
       node = walk.nextNode();
     }
-    if (ranges.length > 0) {
+    if (words.length > 0) {
       const idGen = twoCharIDGenerator();
-      for (let i = 0; i < ranges.length; i++) {
-        const range = ranges[i];
-        if (!range) continue;
-        const { rect } = range;
+      for (let i = 0; i < words.length; i++) {
+        const word = words[i];
+        if (!word) continue;
+        const { node, start, end, rect } = word;
         const id = idGen.next().value;
         const highlight = createElement("div", {
           styles: {
@@ -1883,59 +1947,194 @@ function Root() {
           text: id as string,
         });
         highlightsContainer?.append(highlight);
+        idToHighlightElementMap.set(id as string, highlight);
+        elementToHighlightMap.set(highlight, {
+          type: "word",
+          word: {
+            node,
+            start,
+            end,
+          },
+        });
       }
+      setCurrentMode(Mode.Highlight);
     }
   }
 
-  const actions: Actions = {
-    k: { desc: "Scroll up", fn: scrollUp },
-    j: { desc: "Scroll down", fn: scrollDown },
-    e: { desc: "Scroll half-page up", fn: scrollHalfPageUp },
-    d: { desc: "Scroll half-page down", fn: scrollHalfPageDown },
-    "g g": { desc: "Scroll to top", fn: scrollToTop },
-    "S-g": { desc: "Scroll to bottom", fn: scrollToBottom },
-    i: { desc: "Highlight editable elements", fn: highlightAllInputs },
-    "l f": {
-      desc: "List all links & buttons",
-      fn: () => setShowListAndButtonList((show) => !show),
+  const actionsMap: Record<Mode, Actions> = {
+    [Mode.Normal]: {
+      k: { desc: "Scroll up", fn: scrollUp },
+      j: { desc: "Scroll down", fn: scrollDown },
+      e: { desc: "Scroll half-page up", fn: scrollHalfPageUp },
+      d: { desc: "Scroll half-page down", fn: scrollHalfPageDown },
+      "g g": { desc: "Scroll to top", fn: scrollToTop },
+      "S-g": { desc: "Scroll to bottom", fn: scrollToBottom },
+      i: { desc: "Highlight editable elements", fn: highlightAllInputs },
+      "l f": {
+        desc: "List all links & buttons",
+        fn: () => setShowListAndButtonList((show) => !show),
+      },
+      "l v": {
+        desc: "List all media",
+        fn: () => setShowMediaList((show) => !show),
+      },
+      "l t": {
+        desc: "List all tabs",
+        fn: () => setShowTabList((show) => !show),
+      },
+      "n t": {
+        desc: "New tab to right",
+        fn: openNewTabToRight,
+      },
+      f: {
+        desc: "Highlight links, buttons and inputs",
+        fn: highlightLinksButtonsAndInputs,
+      },
+      "g f": {
+        desc: "Highlight links to open in new tab",
+        fn: highlightLinksToOpenInNewTab,
+      },
+      "S-?": {
+        desc: "Show help",
+        fn: () => {
+          hideAllPopups();
+          setShowActionHelp((show) => !show);
+        },
+      },
+      p: { desc: "Toggle passthrough", fn: togglePassthrough },
+      "C-p": { desc: "Show command palette", fn: toggleCommandPalette },
+      v: { desc: "Visual mode", fn: highlightWordsForVisualMode },
     },
-    "l v": {
-      desc: "List all media",
-      fn: () => setShowMediaList((show) => !show),
-    },
-    "l t": {
-      desc: "List all tabs",
-      fn: () => setShowTabList((show) => !show),
-    },
-    "n t": {
-      desc: "New tab to right",
-      fn: openNewTabToRight,
-    },
-    f: {
-      desc: "Highlight links, buttons and inputs",
-      fn: highlightLinksButtonsAndInputs,
-    },
-    "g f": {
-      desc: "Highlight links to open in new tab",
-      fn: highlightLinksToOpenInNewTab,
-    },
-    "S-?": {
-      desc: "Show help",
-      fn: () => {
-        hideAllPopups();
-        setShowActionHelp((show) => !show);
+    [Mode.Highlight]: {},
+    [Mode.VisualCaret]: {
+      v: {
+        desc: "Toggle visual range",
+        fn: function toggleVisualRange() {
+          setCurrentMode(Mode.VisualRange);
+        },
+      },
+      h: {
+        desc: "Move to left by character",
+        fn: function moveSelectionByCharToLeft() {
+          const selection = getSelection();
+          if (!selection) return;
+          selection.modify("move", "left", "character");
+          selection.modify("move", "left", "character");
+          selection.modify("extend", "right", "character");
+        },
+      },
+      k: {
+        desc: "Move to right by character",
+        fn: function moveSelectionByCharToRight() {
+          const selection = getSelection();
+          if (!selection) return;
+          selection.modify("move", "right", "character");
+          selection.modify("extend", "right", "character");
+        },
       },
     },
-    p: { desc: "Toggle passthrough", fn: togglePassthrough },
-    "C-p": { desc: "Show command palette", fn: toggleCommandPalette },
-    v: { desc: "Visual mode", fn: startVisualMode },
+    [Mode.VisualRange]: {
+      h: {
+        desc: "Select character to left",
+        fn: function extendSelectionByCharToLeft() {
+          const selection = getSelection();
+          if (!selection) return;
+          selection.modify("extend", "left", "character");
+        },
+      },
+      k: {
+        desc: "Select character to right",
+        fn: function extendSelectionByCharToRight() {
+          const selection = getSelection();
+          if (!selection) return;
+          selection.modify("extend", "right", "character");
+        },
+      },
+      w: {
+        desc: "Select word to right",
+        fn: function extendSelectionByWordToRight() {
+          const selection = getSelection();
+          if (!selection) return;
+          selection.modify("extend", "right", "word");
+        },
+      },
+      b: {
+        desc: "Select word to left",
+        fn: function extendSelectionByWordToLeft() {
+          const selection = getSelection();
+          if (!selection) return;
+          selection.modify("extend", "left", "word");
+        },
+      },
+      "0": {
+        desc: "Select to left by sentence",
+        fn: function extendSelectionToStartOfSentence() {
+          const selection = getSelection();
+          if (!selection) return;
+          selection.modify("extend", "left", "sentence");
+        },
+      },
+      "S-$": {
+        desc: "Select to right by sentence",
+        fn: function extendSelectionToStartOfSentence() {
+          const selection = getSelection();
+          if (!selection) return;
+          selection.modify("extend", "right", "sentence");
+        },
+      },
+      "i w": {
+        desc: "Select current word",
+        fn: function selectCurrentWord() {
+          const selection = getSelection();
+          if (!selection || !selection.anchorNode) return;
+          selection.modify("move", "left", "word");
+          selection.modify("extend", "right", "word");
+        },
+      },
+      "i p": {
+        desc: "Select current paragraph",
+        fn: function selectCurrentParagraph() {
+          const selection = getSelection();
+          if (!selection || !selection.anchorNode) return;
+          const node = selection.anchorNode;
+          const paragraph = node.parentElement?.closest("p");
+          if (paragraph) {
+            selection.selectAllChildren(paragraph);
+          }
+        },
+      },
+    },
   };
 
-  const actionKeyCombinations = Object.keys(actions);
+  const actionKeyCombinations: Record<Mode, string[]> = {
+    [Mode.Normal]: Object.keys(actionsMap[Mode.Normal]),
+    [Mode.Highlight]: Object.keys(actionsMap[Mode.Highlight]),
+    [Mode.VisualCaret]: Object.keys(actionsMap[Mode.VisualCaret]),
+    [Mode.VisualRange]: Object.keys(actionsMap[Mode.VisualRange]),
+  };
 
-  const actionUniqueKeys = new Set(
-    actionKeyCombinations.flatMap((kc) => kc.replace(/[CSA]-/g, "").split(" ")),
-  );
+  const actionUniqueKeys: Record<Mode, Set<string>> = {
+    [Mode.Normal]: new Set(
+      actionKeyCombinations[Mode.Normal].flatMap((kc) =>
+        kc.replace(/[CSA]-/g, "").split(" "),
+      ),
+    ),
+    [Mode.Highlight]: new Set(
+      actionKeyCombinations[Mode.Highlight].flatMap((kc) =>
+        kc.replace(/[CSA]-/g, "").split(" "),
+      ),
+    ),
+    [Mode.VisualCaret]: new Set(
+      actionKeyCombinations[Mode.VisualCaret].flatMap((kc) =>
+        kc.replace(/[CSA]-/g, "").split(" "),
+      ),
+    ),
+    [Mode.VisualRange]: new Set(
+      actionKeyCombinations[Mode.VisualRange].flatMap((kc) =>
+        kc.replace(/[CSA]-/g, "").split(" "),
+      ),
+    ),
+  };
 
   const clickListener = (event: MouseEvent) => {
     if (event.target instanceof HTMLElement) {
@@ -1954,9 +2153,10 @@ function Root() {
       hideAllPopups();
     }
     clearAllHighlights();
+    cleanupVisualModeElements();
     setKeyInput("");
     setIsPassthrough(false);
-    state.highlightState = HighlightState.None;
+    setCurrentMode(Mode.Normal);
     state.highlightInput = "";
   }
 
@@ -2002,11 +2202,13 @@ function Root() {
       return;
     }
 
+    const mode = currentMode();
+
     if (
       !ctrlKey &&
       !shiftKey &&
       !altKey &&
-      state.highlightState === HighlightState.Highlighted &&
+      mode === Mode.Highlight &&
       key !== "Escape"
     ) {
       event.stopImmediatePropagation();
@@ -2021,7 +2223,7 @@ function Root() {
       return;
     }
 
-    if (!actionUniqueKeys.has(key.toLowerCase())) {
+    if (!actionUniqueKeys[mode].has(key.toLowerCase())) {
       return;
     }
 
@@ -2035,33 +2237,36 @@ function Root() {
     event.stopPropagation();
 
     const input = keyInput();
-    const filtered = actionKeyCombinations.filter((key) =>
+    const filtered = actionKeyCombinations[mode].filter((key) =>
       key.startsWith(input),
     );
     const firstResult = filtered[0];
     if (filtered.length === 1 && firstResult === input) {
       event.preventDefault();
-      actions[firstResult].fn(event);
+      actionsMap[mode][firstResult].fn(event);
       setKeyInput("");
     } else if (filtered.length === 0) {
       setKeyInput("");
     }
   };
 
+  const controller = new AbortController();
+
   onMount(() => {
-    document.documentElement.addEventListener("click", clickListener);
-    document.body.addEventListener("focusin", focusListener);
+    document.documentElement.addEventListener("click", clickListener, {
+      signal: controller.signal,
+    });
+    document.body.addEventListener("focusin", focusListener, {
+      signal: controller.signal,
+    });
     document.body.addEventListener("keydown", mainKeydownListener, {
       capture: true,
+      signal: controller.signal,
     });
   });
 
   onCleanup(() => {
-    document.documentElement.removeEventListener("click", clickListener);
-    document.body.removeEventListener("focusin", focusListener);
-    document.body.removeEventListener("keydown", mainKeydownListener, {
-      capture: true,
-    });
+    controller.abort();
   });
 
   return (
@@ -2086,11 +2291,23 @@ function Root() {
           "pointer-events": "none",
         }}
       />
+      <div
+        ref={visualModeContainer}
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          "z-index": 69420,
+          "pointer-events": "none",
+        }}
+      />
       <Show when={keyInput().length > 0 || showActionHelp()}>
         <ActionsHelp
           keyInput={keyInput()}
-          actions={actions}
-          actionKeys={actionKeyCombinations}
+          actions={actionsMap[currentMode()]}
+          actionKeys={actionKeyCombinations[currentMode()]}
         />
       </Show>
       <Show when={showLinkAndButtonList()}>
@@ -2118,10 +2335,32 @@ function Root() {
       </Show>
       <Show when={showCommandPalette()}>
         <CommandPalette
-          actions={actions}
+          actions={actionsMap[currentMode()]}
           getCurrentElement={getCurrentElement}
           showDebugList={() => setShowDebugList(true)}
         />
+      </Show>
+      <Show when={currentMode() === Mode.VisualCaret}>
+        <div
+          style={{
+            ...PopupStyles,
+            width: "auto",
+            padding: rem(0.5),
+          }}
+        >
+          Visual caret
+        </div>
+      </Show>
+      <Show when={currentMode() === Mode.VisualRange}>
+        <div
+          style={{
+            ...PopupStyles,
+            width: "auto",
+            padding: rem(0.5),
+          }}
+        >
+          Visual range
+        </div>
       </Show>
       <style>{`
 .qs-text-ellipsis { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
