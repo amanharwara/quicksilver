@@ -2032,6 +2032,26 @@ function Root() {
           selection.modify("extend", "right", "character");
         },
       },
+      w: {
+        desc: "Move to right by word",
+        fn: function moveSelectionByWordToRight() {
+          const selection = getSelection();
+          if (!selection) return;
+          selection.modify("move", "right", "word");
+          selection.modify("move", "right", "character");
+          selection.modify("extend", "right", "character");
+        },
+      },
+      b: {
+        desc: "Move to left by word",
+        fn: function moveSelectionByWordToLeft() {
+          const selection = getSelection();
+          if (!selection) return;
+          selection.modify("move", "left", "word");
+          selection.modify("move", "left", "word");
+          selection.modify("extend", "right", "character");
+        },
+      },
     },
     [Mode.VisualRange]: {
       h: {
