@@ -658,29 +658,42 @@ function SearchLinksAndButtons() {
   }
 
   const [selectedItem, setSelectedItem] = createSignal<ClickableItem>();
-  const selectedItemActions = [
-    {
-      desc: "Open",
-      fn: (item: ClickableItem) => {
-        const element = item.element;
-        handleElementInteraction(element, ElementInteractionMode.Click);
-      },
+  const openAction = {
+    desc: "Open",
+    fn: (item: ClickableItem) => {
+      const element = item.element;
+      handleElementInteraction(element, ElementInteractionMode.Click);
     },
-    {
-      desc: "Focus",
-      fn: (item: ClickableItem) => {
-        const element = item.element;
-        handleElementInteraction(element, ElementInteractionMode.Focus);
-      },
+  };
+  const focusAction = {
+    desc: "Focus",
+    fn: (item: ClickableItem) => {
+      const element = item.element;
+      handleElementInteraction(element, ElementInteractionMode.Focus);
     },
-    {
-      desc: "Open in new tab",
-      fn: (item: ClickableItem) => {
-        const element = item.element;
-        handleElementInteraction(element, ElementInteractionMode.OpenInNewTab);
-      },
-    },
-  ];
+  };
+  const selectedItemActions = createMemo(() => {
+    const actions = [openAction, focusAction];
+    if (selectedItem()?.href) {
+      actions.push({
+        desc: "Open in new tab",
+        fn: (item: ClickableItem) => {
+          const element = item.element;
+          handleElementInteraction(
+            element,
+            ElementInteractionMode.OpenInNewTab,
+          );
+        },
+      });
+      actions.push({
+        desc: "Copy link",
+        fn: (item: ClickableItem) => {
+          navigator.clipboard.writeText(item.href!);
+        },
+      });
+    }
+    return actions;
+  });
 
   function handleSelect(item: ClickableItem) {
     setSelectedItem(item);
@@ -730,7 +743,7 @@ function SearchLinksAndButtons() {
       <Show when={selectedItem()}>
         <Popup>
           <ListSearch
-            items={selectedItemActions}
+            items={selectedItemActions()}
             itemContent={({ desc }) => (
               <span class="qs-text-ellipsis" style={{ "font-weight": "bold" }}>
                 {desc}
@@ -1424,7 +1437,7 @@ function TabList() {
                 item.url?.toLowerCase().includes(lowercaseQuery),
             )
           }
-          handleSelect={function selectTab(item, event) {
+          handleSelect={function selectTab(item) {
             setSelectedTab(item);
           }}
         />
@@ -1553,13 +1566,6 @@ function Root() {
     document.documentElement.lang || "en",
     {
       granularity: "word",
-    },
-  );
-
-  const graphemeSegmenter = new Intl.Segmenter(
-    document.documentElement.lang || "en",
-    {
-      granularity: "grapheme",
     },
   );
 
