@@ -2130,9 +2130,29 @@ function Root() {
 
   // Firefox doesn't support "sentence" granularity
   if (import.meta.env.BROWSER !== "firefox") {
+    actionsMap[Mode.VisualCaret]["0"] = {
+      desc: "Move to start of sentence",
+      fn: function moveSelectionToLeftBySentence() {
+        const selection = getSelection();
+        if (!selection) return;
+        selection.modify("move", "left", "sentence");
+        selection.modify("extend", "right", "character");
+      },
+    };
+    actionsMap[Mode.VisualCaret]["S-$"] = {
+      desc: "Move to end of sentence",
+      fn: function moveSelectionToRightBySentence() {
+        const selection = getSelection();
+        if (!selection) return;
+        selection.modify("move", "right", "sentence");
+        selection.modify("move", "left", "character");
+        selection.modify("move", "left", "character");
+        selection.modify("extend", "right", "character");
+      },
+    };
     actionsMap[Mode.VisualRange]["0"] = {
       desc: "Select to left by sentence",
-      fn: function extendSelectionToStartOfSentence() {
+      fn: function extendSelectionToLeftBySentence() {
         const selection = getSelection();
         if (!selection) return;
         selection.modify("extend", "left", "sentence");
@@ -2140,7 +2160,7 @@ function Root() {
     };
     actionsMap[Mode.VisualRange]["S-$"] = {
       desc: "Select to right by sentence",
-      fn: function extendSelectionToStartOfSentence() {
+      fn: function extendSelectionToRightBySentence() {
         const selection = getSelection();
         if (!selection) return;
         selection.modify("extend", "right", "sentence");
