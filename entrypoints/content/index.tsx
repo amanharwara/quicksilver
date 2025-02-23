@@ -2032,7 +2032,7 @@ function Root() {
           selection.modify("extend", "right", "character");
         },
       },
-      k: {
+      l: {
         desc: "Move to right by character",
         fn: function moveSelectionByCharToRight() {
           const selection = getSelection();
@@ -2071,7 +2071,7 @@ function Root() {
           selection.modify("extend", "left", "character");
         },
       },
-      k: {
+      l: {
         desc: "Select character to right",
         fn: function extendSelectionByCharToRight() {
           const selection = getSelection();
