@@ -2107,6 +2107,14 @@ function Root() {
           }
         },
       },
+      y: {
+        desc: "Copy selection",
+        fn: function copySelection() {
+          const selection = getSelection();
+          if (!selection) return;
+          document.execCommand("copy");
+        },
+      },
     },
   };
 
