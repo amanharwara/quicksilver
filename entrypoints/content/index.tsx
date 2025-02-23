@@ -55,13 +55,22 @@ export function* twoCharIDGenerator() {
   }
 }
 
+const OverflowValuesThatShowScrollbar = ["auto", "scroll"];
 function isElementOverflowing(element: HTMLElement) {
-  return element.scrollHeight > element.offsetHeight;
+  const isOverflowing = element.scrollHeight > element.offsetHeight;
+  if (!isOverflowing) {
+    return false;
+  }
+  const style = getComputedStyle(element);
+  return (
+    OverflowValuesThatShowScrollbar.includes(style.overflow) ||
+    OverflowValuesThatShowScrollbar.includes(style.overflowY)
+  );
 }
 
 function findOverflowingParent(element: Element) {
   let parent = element.parentElement;
-  while (parent && parent.scrollHeight === parent.offsetHeight) {
+  while (parent && !isElementOverflowing(parent)) {
     parent = parent.parentElement;
   }
   return parent;
@@ -2113,6 +2122,7 @@ function Root() {
           const selection = getSelection();
           if (!selection) return;
           document.execCommand("copy");
+          resetState(true);
         },
       },
     },
