@@ -37,6 +37,7 @@ export default defineBackground(() => {
           active: false,
           url: message.url,
           index: activeTabIndex + 1,
+          cookieStoreId: activeTab.cookieStoreId,
         });
         break;
       }
@@ -49,6 +50,7 @@ export default defineBackground(() => {
         browser.tabs.create({
           active: true,
           index: activeTabIndex + 1,
+          cookieStoreId: activeTab.cookieStoreId,
         });
         break;
       }
