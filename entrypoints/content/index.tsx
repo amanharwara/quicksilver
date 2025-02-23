@@ -2086,22 +2086,6 @@ function Root() {
           selection.modify("extend", "left", "word");
         },
       },
-      "0": {
-        desc: "Select to left by sentence",
-        fn: function extendSelectionToStartOfSentence() {
-          const selection = getSelection();
-          if (!selection) return;
-          selection.modify("extend", "left", "sentence");
-        },
-      },
-      "S-$": {
-        desc: "Select to right by sentence",
-        fn: function extendSelectionToStartOfSentence() {
-          const selection = getSelection();
-          if (!selection) return;
-          selection.modify("extend", "right", "sentence");
-        },
-      },
       "i w": {
         desc: "Select current word",
         fn: function selectCurrentWord() {
@@ -2125,6 +2109,26 @@ function Root() {
       },
     },
   };
+
+  // Firefox doesn't support "sentence" granularity
+  if (import.meta.env.BROWSER !== "firefox") {
+    actionsMap[Mode.VisualRange]["0"] = {
+      desc: "Select to left by sentence",
+      fn: function extendSelectionToStartOfSentence() {
+        const selection = getSelection();
+        if (!selection) return;
+        selection.modify("extend", "left", "sentence");
+      },
+    };
+    actionsMap[Mode.VisualRange]["S-$"] = {
+      desc: "Select to right by sentence",
+      fn: function extendSelectionToStartOfSentence() {
+        const selection = getSelection();
+        if (!selection) return;
+        selection.modify("extend", "right", "sentence");
+      },
+    };
+  }
 
   const actionKeyCombinations: Record<Mode, string[]> = {
     [Mode.Normal]: Object.keys(actionsMap[Mode.Normal]),
