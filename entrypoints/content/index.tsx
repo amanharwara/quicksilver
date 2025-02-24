@@ -23,12 +23,16 @@ import {
   extendSelectionByWordToLeft,
   extendSelectionByWordToRight,
   extendSelectionToLeftBySentence,
+  extendSelectionToLineAbove,
+  extendSelectionToLineBelow,
   extendSelectionToRightBySentence,
   moveSelectionByCharToLeft,
   moveSelectionByCharToRight,
   moveSelectionByWordToLeft,
   moveSelectionByWordToRight,
   moveSelectionToLeftBySentence,
+  moveSelectionToLineAbove,
+  moveSelectionToLineBelow,
   moveSelectionToRightBySentence,
   selectCurrentParagraph,
   selectCurrentWord,
@@ -2056,6 +2060,14 @@ function Root() {
         desc: "Move to left by word",
         fn: moveSelectionByWordToLeft,
       },
+      k: {
+        desc: "Move to line above",
+        fn: moveSelectionToLineAbove,
+      },
+      j: {
+        desc: "Move to line below",
+        fn: moveSelectionToLineBelow,
+      },
       "S-arrowleft": {
         desc: "Select to left by character",
         fn: () => {
@@ -2068,6 +2080,20 @@ function Root() {
         fn: () => {
           setCurrentMode(Mode.VisualRange);
           extendSelectionByCharToRight();
+        },
+      },
+      "S-arrowup": {
+        desc: "Select to line above by character",
+        fn: () => {
+          setCurrentMode(Mode.VisualRange);
+          extendSelectionToLineAbove();
+        },
+      },
+      "S-arrowdown": {
+        desc: "Select to line below by character",
+        fn: () => {
+          setCurrentMode(Mode.VisualRange);
+          extendSelectionToLineBelow();
         },
       },
       "C-S-arrowleft": {
@@ -2133,7 +2159,19 @@ function Root() {
     fn: extendSelectionByWordToLeft,
   };
 
+  const extendToLineAbove = {
+    desc: "Select to line above by character",
+    fn: extendSelectionToLineAbove,
+  };
+
+  const extendToLineBelow = {
+    desc: "Select to line below by character",
+    fn: extendSelectionToLineBelow,
+  };
+
   actionsMap[Mode.VisualRange]["h"] = extendToLeftByChar;
+  actionsMap[Mode.VisualRange]["j"] = extendToLineBelow;
+  actionsMap[Mode.VisualRange]["k"] = extendToLineAbove;
   actionsMap[Mode.VisualRange]["l"] = extendToRightByChar;
 
   actionsMap[Mode.VisualRange]["w"] = extendToRightByWord;
@@ -2145,6 +2183,8 @@ function Root() {
     // handlers for that
     actionsMap[Mode.VisualRange]["S-arrowleft"] = extendToLeftByChar;
     actionsMap[Mode.VisualRange]["S-arrowright"] = extendToRightByChar;
+    actionsMap[Mode.VisualRange]["S-arrowup"] = extendToLineAbove;
+    actionsMap[Mode.VisualRange]["S-arrowdown"] = extendToLineBelow;
     actionsMap[Mode.VisualRange]["C-S-arrowright"] = extendToRightByWord;
     actionsMap[Mode.VisualRange]["C-S-arrowleft"] = extendToLeftByWord;
 

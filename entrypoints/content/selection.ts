@@ -22,16 +22,16 @@ export function extendSelectionByWordToLeft() {
   selection.modify("extend", "left", "word");
 }
 
-export function moveSelectionToLeftBySentence() {
+export function extendSelectionToLineAbove() {
   const selection = getSelection();
   if (!selection) return;
-  selection.modify("move", "left", "sentence");
+  selection.modify("extend", "left", "line");
 }
 
-export function moveSelectionToRightBySentence() {
+export function extendSelectionToLineBelow() {
   const selection = getSelection();
   if (!selection) return;
-  selection.modify("move", "right", "sentence");
+  selection.modify("extend", "right", "line");
 }
 
 export function extendSelectionToLeftBySentence() {
@@ -46,21 +46,28 @@ export function extendSelectionToRightBySentence() {
   selection.modify("extend", "right", "sentence");
 }
 
-export function selectCurrentParagraph() {
-  const selection = getSelection();
-  if (!selection || !selection.anchorNode) return;
-  const node = selection.anchorNode;
-  const paragraph = node.parentElement?.closest("p,div");
-  if (paragraph) {
-    selection.selectAllChildren(paragraph);
-  }
-}
-
-export function selectCurrentWord() {
+export function moveSelectionToLeftBySentence() {
   const selection = getSelection();
   if (!selection) return;
-  selection.modify("move", "left", "word");
-  selection.modify("extend", "right", "word");
+  selection.modify("move", "left", "sentence");
+}
+
+export function moveSelectionToRightBySentence() {
+  const selection = getSelection();
+  if (!selection) return;
+  selection.modify("move", "right", "sentence");
+}
+
+export function moveSelectionToLineAbove() {
+  const selection = getSelection();
+  if (!selection) return;
+  selection.modify("move", "left", "line");
+}
+
+export function moveSelectionToLineBelow() {
+  const selection = getSelection();
+  if (!selection) return;
+  selection.modify("move", "right", "line");
 }
 
 export function moveSelectionByWordToLeft() {
@@ -91,4 +98,21 @@ export function collapseSelectionToEnd() {
   const selection = getSelection();
   if (!selection) return;
   selection.collapse(selection.focusNode, selection.focusOffset);
+}
+
+export function selectCurrentParagraph() {
+  const selection = getSelection();
+  if (!selection || !selection.anchorNode) return;
+  const node = selection.anchorNode;
+  const paragraph = node.parentElement?.closest("p,div");
+  if (paragraph) {
+    selection.selectAllChildren(paragraph);
+  }
+}
+
+export function selectCurrentWord() {
+  const selection = getSelection();
+  if (!selection) return;
+  selection.modify("move", "left", "word");
+  selection.modify("extend", "right", "word");
 }
