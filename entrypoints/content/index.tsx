@@ -16,6 +16,23 @@ import {
   SlidersHorizontalIcon,
 } from "./icons";
 import { log } from "../../Util";
+import {
+  collapseSelectionToEnd,
+  extendSelectionByCharToLeft,
+  extendSelectionByCharToRight,
+  extendSelectionByWordToLeft,
+  extendSelectionByWordToRight,
+  extendSelectionToLeftBySentence,
+  extendSelectionToRightBySentence,
+  moveSelectionByCharToLeft,
+  moveSelectionByCharToRight,
+  moveSelectionByWordToLeft,
+  moveSelectionByWordToRight,
+  moveSelectionToLeftBySentence,
+  moveSelectionToRightBySentence,
+  selectCurrentParagraph,
+  selectCurrentWord,
+} from "./selection";
 
 const mainContext = createContext<{
   shouldShowDebugInfo: Accessor<boolean>;
@@ -23,7 +40,7 @@ const mainContext = createContext<{
   hideAllPopups: () => void;
   resetState: (hidePopups: boolean) => void;
   registerKeydownListener: (
-    listener: KeyEventListener,
+    listener: KeyEventListener
   ) => KeyEventListenerCleanup;
 }>();
 
@@ -87,7 +104,7 @@ function createElement(
     styles?: ElementStyles;
     children?: HTMLElement[];
     text?: string;
-  } = {},
+  } = {}
 ) {
   const element = document.createElement(tag);
   const { className, styles, children, text } = options;
@@ -257,7 +274,7 @@ type KeyEventListenerCleanup = () => void;
 
 function handleElementInteraction(
   element: HTMLElement,
-  mode: ElementInteractionMode,
+  mode: ElementInteractionMode
 ) {
   switch (mode) {
     case ElementInteractionMode.Click:
@@ -345,7 +362,7 @@ function ClickableItemComp(
     index: number;
     focusedIndex: number;
     children: JSX.Element;
-  } & ComponentProps<"button">,
+  } & ComponentProps<"button">
 ) {
   const [props, rest] = splitProps(allProps, [
     "index",
@@ -681,7 +698,7 @@ function SearchLinksAndButtons() {
           const element = item.element;
           handleElementInteraction(
             element,
-            ElementInteractionMode.OpenInNewTab,
+            ElementInteractionMode.OpenInNewTab
           );
         },
       });
@@ -804,7 +821,7 @@ function PlaybackRateMenu(props: {
   const context = useMainContext();
 
   const [focusedIndex, setFocusedIndex] = createSignal(
-    playbackRates.findIndex((r) => r === props.media.playbackRate),
+    playbackRates.findIndex((r) => r === props.media.playbackRate)
   );
 
   function selectRate(rate: number) {
@@ -887,13 +904,13 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
   const [currentTime, setCurrentTime] = createSignal(props.media.currentTime);
   const [duration, setDuration] = createSignal(props.media.duration);
   const [playbackRate, setPlaybackRate] = createSignal(
-    props.media.playbackRate,
+    props.media.playbackRate
   );
   const [volume, setVolume] = createSignal(props.media.volume);
   const [muted, setMuted] = createSignal(props.media.muted);
   const [loop, setLoop] = createSignal(props.media.loop);
   const [showNativeControls, setShowNativeControls] = createSignal(
-    props.media.controls,
+    props.media.controls
   );
 
   const [isPlaybackRateMenuOpen, setIsPlaybackRateMenuOpen] =
@@ -932,7 +949,7 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
       },
       {
         signal: controller.signal,
-      },
+      }
     );
 
     props.media.addEventListener(
@@ -943,7 +960,7 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
       },
       {
         signal: controller.signal,
-      },
+      }
     );
 
     props.media.addEventListener(
@@ -951,7 +968,7 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
       () => setDuration(props.media.duration),
       {
         signal: controller.signal,
-      },
+      }
     );
 
     props.media.addEventListener(
@@ -959,7 +976,7 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
       () => setPlaybackRate(props.media.playbackRate),
       {
         signal: controller.signal,
-      },
+      }
     );
 
     props.media.addEventListener(
@@ -967,7 +984,7 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
       () => setCurrentTime(props.media.currentTime),
       {
         signal: controller.signal,
-      },
+      }
     );
 
     props.media.addEventListener(
@@ -978,7 +995,7 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
       },
       {
         signal: controller.signal,
-      },
+      }
     );
 
     //
@@ -1040,7 +1057,7 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
           event.stopImmediatePropagation();
           props.media.currentTime = Math.min(
             props.media.currentTime + 5,
-            props.media.duration,
+            props.media.duration
           );
           return true;
         }
@@ -1303,7 +1320,7 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
           active={showNativeControls()}
           onChange={() =>
             setShowNativeControls(
-              (props.media.controls = !props.media.controls),
+              (props.media.controls = !props.media.controls)
             )
           }
           icon={SlidersHorizontalIcon}
@@ -1434,7 +1451,7 @@ function TabList() {
           filter={(item, lowercaseQuery) =>
             Boolean(
               item.title?.toLowerCase().includes(lowercaseQuery) ||
-                item.url?.toLowerCase().includes(lowercaseQuery),
+                item.url?.toLowerCase().includes(lowercaseQuery)
             )
           }
           handleSelect={function selectTab(item) {
@@ -1524,7 +1541,7 @@ function CommandPalette(props: {
 
   function handleSelect(
     item: (typeof commands)[number],
-    event: KeyboardEvent | MouseEvent,
+    event: KeyboardEvent | MouseEvent
   ) {
     context.resetState(true);
     item.fn(event);
@@ -1549,7 +1566,7 @@ function CommandPalette(props: {
         filter={({ key, desc }, lowercaseQuery) => {
           return Boolean(
             key?.toLowerCase().includes(lowercaseQuery) ||
-              desc.toLowerCase().includes(lowercaseQuery),
+              desc.toLowerCase().includes(lowercaseQuery)
           );
         }}
         handleSelect={handleSelect}
@@ -1561,12 +1578,13 @@ function CommandPalette(props: {
 function Root() {
   let highlightsContainer: HTMLDivElement | undefined;
   let visualModeContainer: HTMLDivElement | undefined;
+  let collapsedCaret: HTMLDivElement | undefined;
 
   const wordSegmenter = new Intl.Segmenter(
     document.documentElement.lang || "en",
     {
       granularity: "word",
-    },
+    }
   );
 
   const state: {
@@ -1639,7 +1657,7 @@ function Root() {
       return;
     }
     const elementRects = Array.from(
-      elements.values().map((linkEl) => linkEl.getBoundingClientRect()),
+      elements.values().map((linkEl) => linkEl.getBoundingClientRect())
     );
     const highlightIDs = twoCharIDGenerator();
     const windowHeight = window.innerHeight;
@@ -1692,7 +1710,7 @@ function Root() {
         highlight.element,
         highlight.element instanceof HTMLInputElement
           ? ElementInteractionMode.Focus
-          : state.highlightInteractionMode,
+          : state.highlightInteractionMode
       );
     } else if (highlight.type === "word") {
       startVisualMode(highlight.word);
@@ -1708,7 +1726,6 @@ function Root() {
 
     setCurrentMode(Mode.VisualCaret);
     selection.setPosition(word.node, word.start);
-    selection.modify("extend", "right", "character");
   }
 
   function updateHighlightInput(key: string, event: KeyboardEvent) {
@@ -1830,7 +1847,7 @@ function Root() {
     if (currentMode() !== Mode.Highlight) {
       state.highlightInteractionMode = ElementInteractionMode.Click;
       highlightElementsBySelector(
-        `:is(a,button,input,[role^="menuitem"],[role="button"]):not(:disabled):not([aria-disabled="true"])`,
+        `:is(a,button,input,[role^="menuitem"],[role="button"]):not(:disabled):not([aria-disabled="true"])`
       );
     }
   }
@@ -1866,15 +1883,10 @@ function Root() {
   function highlightWordsForVisualMode() {
     cleanupVisualModeElements();
 
-    const selection = window.getSelection();
-    if (selection) {
-      selection.empty();
-    }
-
     const walk = document.createTreeWalker(
       document.body,
       NodeFilter.SHOW_TEXT,
-      null,
+      null
     );
     let node = walk.nextNode();
     const windowHeight = window.innerHeight;
@@ -2030,97 +2042,57 @@ function Root() {
       },
       h: {
         desc: "Move to left by character",
-        fn: function moveSelectionByCharToLeft() {
-          const selection = getSelection();
-          if (!selection) return;
-          selection.modify("move", "left", "character");
-          selection.modify("move", "left", "character");
-          selection.modify("extend", "right", "character");
-        },
+        fn: moveSelectionByCharToLeft,
       },
       l: {
         desc: "Move to right by character",
-        fn: function moveSelectionByCharToRight() {
-          const selection = getSelection();
-          if (!selection) return;
-          selection.modify("move", "right", "character");
-          selection.modify("extend", "right", "character");
-        },
+        fn: moveSelectionByCharToRight,
       },
       w: {
         desc: "Move to right by word",
-        fn: function moveSelectionByWordToRight() {
-          const selection = getSelection();
-          if (!selection) return;
-          selection.modify("move", "right", "word");
-          selection.modify("move", "right", "character");
-          selection.modify("extend", "right", "character");
-        },
+        fn: moveSelectionByWordToRight,
       },
       b: {
         desc: "Move to left by word",
-        fn: function moveSelectionByWordToLeft() {
-          const selection = getSelection();
-          if (!selection) return;
-          selection.modify("move", "left", "word");
-          selection.modify("move", "left", "word");
-          selection.modify("extend", "right", "character");
+        fn: moveSelectionByWordToLeft,
+      },
+      "S-arrowleft": {
+        desc: "Select to left by character",
+        fn: () => {
+          setCurrentMode(Mode.VisualRange);
+          extendSelectionByCharToLeft();
+        },
+      },
+      "S-arrowright": {
+        desc: "Select to right by character",
+        fn: () => {
+          setCurrentMode(Mode.VisualRange);
+          extendSelectionByCharToRight();
+        },
+      },
+      "C-S-arrowleft": {
+        desc: "Select to left by word",
+        fn: () => {
+          setCurrentMode(Mode.VisualRange);
+          extendSelectionByWordToLeft();
+        },
+      },
+      "C-S-arrowright": {
+        desc: "Select to right by word",
+        fn: () => {
+          setCurrentMode(Mode.VisualRange);
+          extendSelectionByWordToRight();
         },
       },
     },
     [Mode.VisualRange]: {
-      h: {
-        desc: "Select character to left",
-        fn: function extendSelectionByCharToLeft() {
-          const selection = getSelection();
-          if (!selection) return;
-          selection.modify("extend", "left", "character");
-        },
-      },
-      l: {
-        desc: "Select character to right",
-        fn: function extendSelectionByCharToRight() {
-          const selection = getSelection();
-          if (!selection) return;
-          selection.modify("extend", "right", "character");
-        },
-      },
-      w: {
-        desc: "Select word to right",
-        fn: function extendSelectionByWordToRight() {
-          const selection = getSelection();
-          if (!selection) return;
-          selection.modify("extend", "right", "word");
-        },
-      },
-      b: {
-        desc: "Select word to left",
-        fn: function extendSelectionByWordToLeft() {
-          const selection = getSelection();
-          if (!selection) return;
-          selection.modify("extend", "left", "word");
-        },
-      },
       "i w": {
         desc: "Select current word",
-        fn: function selectCurrentWord() {
-          const selection = getSelection();
-          if (!selection || !selection.anchorNode) return;
-          selection.modify("move", "left", "word");
-          selection.modify("extend", "right", "word");
-        },
+        fn: selectCurrentWord,
       },
       "i p": {
         desc: "Select current paragraph",
-        fn: function selectCurrentParagraph() {
-          const selection = getSelection();
-          if (!selection || !selection.anchorNode) return;
-          const node = selection.anchorNode;
-          const paragraph = node.parentElement?.closest("p");
-          if (paragraph) {
-            selection.selectAllChildren(paragraph);
-          }
-        },
+        fn: selectCurrentParagraph,
       },
       y: {
         desc: "Copy selection",
@@ -2131,46 +2103,67 @@ function Root() {
           resetState(true);
         },
       },
+      escape: {
+        desc: "Enable visual caret mode",
+        fn: () => {
+          setCurrentMode(Mode.VisualCaret);
+          collapseSelectionToEnd();
+        },
+      },
     },
   };
 
-  // Firefox doesn't support "sentence" granularity
+  const extendToLeftByChar = {
+    desc: "Select character to left",
+    fn: extendSelectionByCharToLeft,
+  };
+
+  const extendToRightByChar = {
+    desc: "Select character to right",
+    fn: extendSelectionByCharToRight,
+  };
+
+  const extendToRightByWord = {
+    desc: "Select word to right",
+    fn: extendSelectionByWordToRight,
+  };
+
+  const extendToLeftByWord = {
+    desc: "Select word to left",
+    fn: extendSelectionByWordToLeft,
+  };
+
+  actionsMap[Mode.VisualRange]["h"] = extendToLeftByChar;
+  actionsMap[Mode.VisualRange]["l"] = extendToRightByChar;
+
+  actionsMap[Mode.VisualRange]["w"] = extendToRightByWord;
+  actionsMap[Mode.VisualRange]["b"] = extendToLeftByWord;
+
   if (import.meta.env.BROWSER !== "firefox") {
+    // Chrome doesn't seem to allow using Shift + arrows to
+    // extend selection if it is collapsed, so we can register
+    // handlers for that
+    actionsMap[Mode.VisualRange]["S-arrowleft"] = extendToLeftByChar;
+    actionsMap[Mode.VisualRange]["S-arrowright"] = extendToRightByChar;
+    actionsMap[Mode.VisualRange]["C-S-arrowright"] = extendToRightByWord;
+    actionsMap[Mode.VisualRange]["C-S-arrowleft"] = extendToLeftByWord;
+
+    // Firefox doesn't support "sentence" granularity
     actionsMap[Mode.VisualCaret]["0"] = {
       desc: "Move to start of sentence",
-      fn: function moveSelectionToLeftBySentence() {
-        const selection = getSelection();
-        if (!selection) return;
-        selection.modify("move", "left", "sentence");
-        selection.modify("extend", "right", "character");
-      },
+      fn: moveSelectionToLeftBySentence,
     };
     actionsMap[Mode.VisualCaret]["S-$"] = {
       desc: "Move to end of sentence",
-      fn: function moveSelectionToRightBySentence() {
-        const selection = getSelection();
-        if (!selection) return;
-        selection.modify("move", "right", "sentence");
-        selection.modify("move", "left", "character");
-        selection.modify("move", "left", "character");
-        selection.modify("extend", "right", "character");
-      },
+      fn: moveSelectionToRightBySentence,
     };
     actionsMap[Mode.VisualRange]["0"] = {
       desc: "Select to left by sentence",
-      fn: function extendSelectionToLeftBySentence() {
-        const selection = getSelection();
-        if (!selection) return;
-        selection.modify("extend", "left", "sentence");
-      },
+      fn: extendSelectionToLeftBySentence,
     };
     actionsMap[Mode.VisualRange]["S-$"] = {
       desc: "Select to right by sentence",
-      fn: function extendSelectionToRightBySentence() {
-        const selection = getSelection();
-        if (!selection) return;
-        selection.modify("extend", "right", "sentence");
-      },
+      fn: extendSelectionToRightBySentence,
     };
   }
 
@@ -2184,36 +2177,24 @@ function Root() {
   const actionUniqueKeys: Record<Mode, Set<string>> = {
     [Mode.Normal]: new Set(
       actionKeyCombinations[Mode.Normal].flatMap((kc) =>
-        kc.replace(/[CSA]-/g, "").split(" "),
-      ),
+        kc.replace(/[CSA]-/g, "").split(" ")
+      )
     ),
     [Mode.Highlight]: new Set(
       actionKeyCombinations[Mode.Highlight].flatMap((kc) =>
-        kc.replace(/[CSA]-/g, "").split(" "),
-      ),
+        kc.replace(/[CSA]-/g, "").split(" ")
+      )
     ),
     [Mode.VisualCaret]: new Set(
       actionKeyCombinations[Mode.VisualCaret].flatMap((kc) =>
-        kc.replace(/[CSA]-/g, "").split(" "),
-      ),
+        kc.replace(/[CSA]-/g, "").split(" ")
+      )
     ),
     [Mode.VisualRange]: new Set(
       actionKeyCombinations[Mode.VisualRange].flatMap((kc) =>
-        kc.replace(/[CSA]-/g, "").split(" "),
-      ),
+        kc.replace(/[CSA]-/g, "").split(" ")
+      )
     ),
-  };
-
-  const clickListener = (event: MouseEvent) => {
-    if (event.target instanceof HTMLElement) {
-      state.activeElement = event.target;
-    }
-  };
-
-  const focusListener = (event: FocusEvent) => {
-    if (event.target instanceof HTMLElement) {
-      state.activeElement = event.target;
-    }
   };
 
   function resetState(hidePopups: boolean) {
@@ -2231,7 +2212,7 @@ function Root() {
   const keydownListeners = new Set<KeyEventListener>();
 
   function registerKeydownListener(
-    listener: KeyEventListener,
+    listener: KeyEventListener
   ): KeyEventListenerCleanup {
     keydownListeners.add(listener);
     return () => {
@@ -2265,12 +2246,13 @@ function Root() {
       resetState(false);
       return;
     }
-    if (key === "Escape") {
+
+    const mode = currentMode();
+
+    if (key === "Escape" && !actionUniqueKeys[mode].has("escape")) {
       resetState(true);
       return;
     }
-
-    const mode = currentMode();
 
     if (
       !ctrlKey &&
@@ -2306,7 +2288,7 @@ function Root() {
 
     const input = keyInput();
     const filtered = actionKeyCombinations[mode].filter((key) =>
-      key.startsWith(input),
+      key.startsWith(input)
     );
     const firstResult = filtered[0];
     if (filtered.length === 1 && firstResult === input) {
@@ -2318,13 +2300,25 @@ function Root() {
     }
   };
 
+  const selectionChangeListener = () => {
+    if (!collapsedCaret) return;
+
+    const selection = getSelection();
+    if (!selection || !selection.isCollapsed) {
+      collapsedCaret.style.display = "none";
+      return;
+    }
+
+    const rect = selection.getRangeAt(0).getBoundingClientRect();
+    collapsedCaret.style.display = "";
+    collapsedCaret.style.height = `${rect.height}px`;
+    collapsedCaret.style.translate = `${rect.x}px ${rect.y}px`;
+  };
+
   const controller = new AbortController();
 
   onMount(() => {
-    document.documentElement.addEventListener("click", clickListener, {
-      signal: controller.signal,
-    });
-    document.body.addEventListener("focusin", focusListener, {
+    document.addEventListener("selectionchange", selectionChangeListener, {
       signal: controller.signal,
     });
     document.body.addEventListener("keydown", mainKeydownListener, {
@@ -2371,6 +2365,26 @@ function Root() {
           "pointer-events": "none",
         }}
       />
+      <Show
+        when={
+          currentMode() === Mode.VisualCaret ||
+          currentMode() === Mode.VisualRange
+        }
+      >
+        <div
+          ref={collapsedCaret}
+          role="presentation"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "1.5px",
+            "z-index": 69420,
+            "pointer-events": "none",
+            background: "fuchsia",
+          }}
+        />
+      </Show>
       <Show when={keyInput().length > 0 || showActionHelp()}>
         <ActionsHelp
           keyInput={keyInput()}
