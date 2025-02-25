@@ -2231,9 +2231,7 @@ function Root() {
 
   const actionUniqueKeys: Record<Mode, Set<string>> = {
     [Mode.Normal]: new Set(
-      actionKeyCombinations[Mode.Normal].flatMap((kc) =>
-        kc.replace(/[CSA]-/g, "").split(" ")
-      )
+      actionKeyCombinations[Mode.Normal].flatMap((kc) => kc.split(" "))
     ),
     [Mode.Highlight]: new Set(
       actionKeyCombinations[Mode.Highlight].flatMap((kc) =>
@@ -2275,6 +2273,13 @@ function Root() {
     };
   }
 
+  function isInputElement(el: Element | EventTarget | null) {
+    if (!(el instanceof Element)) return false;
+    return el instanceof HTMLInputElement ||
+      el instanceof HTMLTextAreaElement ||
+      !!el?.closest('[contenteditable="true"]')
+  }
+
   const mainKeydownListener = (event: KeyboardEvent) => {
     if (keydownListeners.size > 0) {
       const listeners = Array.from(keydownListeners);
@@ -2286,18 +2291,14 @@ function Root() {
       }
     }
 
-    const { key, ctrlKey, shiftKey, altKey } = event;
+    const { key, ctrlKey, shiftKey, altKey, target } = event;
 
     if (key === "Control" || key === "Shift" || key === "Alt") {
       return;
     }
 
     const element = getCurrentElement();
-    const isInputElement =
-      element instanceof HTMLInputElement ||
-      element instanceof HTMLTextAreaElement ||
-      element?.closest('[contenteditable="true"]');
-    if (isInputElement) {
+    if (isInputElement(element) || isInputElement(target)) {
       resetState(false);
       return;
     }
@@ -2328,7 +2329,7 @@ function Root() {
       return;
     }
 
-    if (!actionUniqueKeys[mode].has(key.toLowerCase())) {
+    if (!actionUniqueKeys[mode].has(keyRepresentation)) {
       return;
     }
 
