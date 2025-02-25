@@ -1065,6 +1065,21 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
           );
           return true;
         }
+        case ",": {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          props.media.currentTime = Math.max(props.media.currentTime - 0.1, 0);
+          return true;
+        }
+        case ".": {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          props.media.currentTime = Math.min(
+            props.media.currentTime + 0.1,
+            props.media.duration
+          );
+          return true;
+        }
         case "escape": {
           event.preventDefault();
           event.stopImmediatePropagation();
