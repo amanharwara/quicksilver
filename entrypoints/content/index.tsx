@@ -46,6 +46,9 @@ const mainContext = createContext<{
   registerKeydownListener: (
     listener: KeyEventListener
   ) => KeyEventListenerCleanup;
+  registerKeyupListener: (
+    listener: KeyEventListener
+  ) => KeyEventListenerCleanup;
 }>();
 
 function useMainContext() {
@@ -511,7 +514,6 @@ function ListSearch<Item extends unknown>(props: {
   itemContent: (item: Item, isFocused: boolean, index: number) => JSX.Element;
   itemProps?: ComponentProps<"button">;
   handleSelect: (item: Item, event: KeyboardEvent | MouseEvent) => void;
-  handleKeyDown?: (item: Item, event: KeyboardEvent) => boolean;
 }) {
   let input: HTMLInputElement | undefined;
 
@@ -538,6 +540,26 @@ function ListSearch<Item extends unknown>(props: {
 
   const context = useMainContext();
 
+  onMount(() => {
+    const cleanup = context.registerKeyupListener((event) => {
+      switch (event.key) {
+        case "Enter": {
+          const item = filtered()[focusedIndex()];
+          if (item) {
+            props.handleSelect(item, event);
+          }
+          return true;
+        }
+        default:
+          return false;
+      }
+    });
+
+    onCleanup(() => {
+      cleanup();
+    });
+  });
+
   return (
     <div
       style={{
@@ -546,9 +568,6 @@ function ListSearch<Item extends unknown>(props: {
       }}
       onKeyDown={(event) => {
         const item = filtered()[focusedIndex()];
-        if (props.handleKeyDown?.(item, event)) {
-          return;
-        }
         const { key } = event;
         switch (key) {
           case "Escape":
@@ -584,19 +603,6 @@ function ListSearch<Item extends unknown>(props: {
               return prev;
             });
             break;
-          default:
-            break;
-        }
-      }}
-      onKeyUp={(event) => {
-        switch (event.key) {
-          case "Enter": {
-            const item = filtered()[focusedIndex()];
-            if (item) {
-              props.handleSelect(item, event);
-            }
-            break;
-          }
           default:
             break;
         }
@@ -1862,11 +1868,11 @@ function Root() {
     elementToScroll.scrollTop = elementToScroll.scrollHeight;
   }
 
-  function highlightLinksButtonsAndInputs() {
+  function highlightInteractiveElements() {
     if (currentMode() !== Mode.Highlight) {
       state.highlightInteractionMode = ElementInteractionMode.Click;
       highlightElementsBySelector(
-        `:is(a,button,input,[role^="menuitem"],[role="button"]):not(:disabled):not([aria-disabled="true"])`
+        `:is(a,button,input,[role^="menuitem"],[role="button"],[role="treeitem"]):not(:disabled):not([aria-disabled="true"])`
       );
     }
   }
@@ -2034,7 +2040,7 @@ function Root() {
       },
       f: {
         desc: "Highlight links, buttons and inputs",
-        fn: highlightLinksButtonsAndInputs,
+        fn: highlightInteractiveElements,
       },
       "g f": {
         desc: "Highlight links to open in new tab",
@@ -2263,6 +2269,7 @@ function Root() {
   }
 
   const keydownListeners = new Set<KeyEventListener>();
+  const keyupListeners = new Set<KeyEventListener>();
 
   function registerKeydownListener(
     listener: KeyEventListener
@@ -2273,11 +2280,22 @@ function Root() {
     };
   }
 
+  function registerKeyupListener(
+    listener: KeyEventListener
+  ): KeyEventListenerCleanup {
+    keyupListeners.add(listener);
+    return () => {
+      keyupListeners.delete(listener);
+    };
+  }
+
   function isInputElement(el: Element | EventTarget | null) {
     if (!(el instanceof Element)) return false;
-    return el instanceof HTMLInputElement ||
+    return (
+      el instanceof HTMLInputElement ||
       el instanceof HTMLTextAreaElement ||
       !!el?.closest('[contenteditable="true"]')
+    );
   }
 
   const mainKeydownListener = (event: KeyboardEvent) => {
@@ -2339,6 +2357,7 @@ function Root() {
 
     setKeyInput((ki) => ki + keyRepresentation);
 
+    event.preventDefault();
     event.stopImmediatePropagation();
     event.stopPropagation();
 
@@ -2354,6 +2373,26 @@ function Root() {
     } else if (filtered.length === 0) {
       setKeyInput("");
     }
+  };
+
+  const mainKeyupListener = (event: KeyboardEvent) => {
+    if (keyupListeners.size > 0) {
+      const listeners = Array.from(keyupListeners);
+      for (let i = listeners.length - 1; i >= 0; i--) {
+        const listener = listeners[i];
+        if (listener(event)) {
+          return;
+        }
+      }
+    }
+    const mode = currentMode();
+    const keyRepresentation = getKeyRepresentation(event);
+    if (!actionUniqueKeys[mode].has(keyRepresentation)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
   };
 
   const selectionChangeListener = () => {
@@ -2381,6 +2420,10 @@ function Root() {
       capture: true,
       signal: controller.signal,
     });
+    document.body.addEventListener("keyup", mainKeyupListener, {
+      capture: true,
+      signal: controller.signal,
+    });
   });
 
   onCleanup(() => {
@@ -2395,6 +2438,7 @@ function Root() {
         hideAllPopups,
         resetState,
         registerKeydownListener,
+        registerKeyupListener,
       }}
     >
       <div
