@@ -541,7 +541,47 @@ function ListSearch<Item extends unknown>(props: {
   const context = useMainContext();
 
   onMount(() => {
-    const cleanup = context.registerKeyupListener((event) => {
+    const cleanupKeydownListener = context.registerKeydownListener((event) => {
+      switch (getKeyRepresentation(event)) {
+        case "escape":
+          event.preventDefault();
+          context.resetState(true);
+          return true;
+        case "pageup":
+        case "pagedown":
+          event.preventDefault();
+          return true;
+        case "home":
+          setFocusedIndex(0);
+          return true;
+        case "end":
+          setFocusedIndex(filtered().length - 1);
+          return true;
+        case "arrowdown":
+          setFocusedIndex((index) => {
+            const next = index + 1;
+            const last = filtered().length - 1;
+            if (next > last) {
+              return 0;
+            }
+            return next;
+          });
+          return true;
+        case "arrowup":
+          setFocusedIndex((index) => {
+            const prev = index - 1;
+            if (prev < 0) {
+              return filtered().length - 1;
+            }
+            return prev;
+          });
+          return true;
+        default:
+          return false;
+      }
+    });
+
+    const cleanupKeyupListener = context.registerKeyupListener((event) => {
       switch (event.key) {
         case "Enter": {
           const item = filtered()[focusedIndex()];
@@ -556,7 +596,8 @@ function ListSearch<Item extends unknown>(props: {
     });
 
     onCleanup(() => {
-      cleanup();
+      cleanupKeydownListener();
+      cleanupKeyupListener();
     });
   });
 
@@ -565,47 +606,6 @@ function ListSearch<Item extends unknown>(props: {
       style={{
         display: "flex",
         "flex-direction": "column",
-      }}
-      onKeyDown={(event) => {
-        const item = filtered()[focusedIndex()];
-        const { key } = event;
-        switch (key) {
-          case "Escape":
-            event.preventDefault();
-            context.resetState(true);
-            break;
-          case "PageUp":
-          case "PageDown":
-            event.preventDefault();
-            break;
-          case "Home":
-            setFocusedIndex(0);
-            break;
-          case "End":
-            setFocusedIndex(filtered().length - 1);
-            break;
-          case "ArrowDown":
-            setFocusedIndex((index) => {
-              const next = index + 1;
-              const last = filtered().length - 1;
-              if (next > last) {
-                return 0;
-              }
-              return next;
-            });
-            break;
-          case "ArrowUp":
-            setFocusedIndex((index) => {
-              const prev = index - 1;
-              if (prev < 0) {
-                return filtered().length - 1;
-              }
-              return prev;
-            });
-            break;
-          default:
-            break;
-        }
       }}
     >
       <VirtualizedList
