@@ -15,7 +15,7 @@ import {
   PlayIcon,
   SlidersHorizontalIcon,
 } from "./icons";
-import { log } from "../../Util";
+import { disableLogging, enableLogging, info } from "../../Util";
 import {
   collapseSelectionToEnd,
   extendSelectionByCharToLeft,
@@ -1635,6 +1635,13 @@ function Root() {
   const [showCommandPalette, setShowCommandPalette] = createSignal(false);
 
   const [shouldShowDebugInfo, setShouldShowDebugInfo] = createSignal(false);
+  createEffect(() => {
+    if (shouldShowDebugInfo()) {
+      enableLogging();
+    } else {
+      disableLogging();
+    }
+  });
 
   function hideAllPopups() {
     setShowActionHelp(false);
@@ -2310,6 +2317,7 @@ function Root() {
     }
 
     const { key, ctrlKey, shiftKey, altKey, target } = event;
+    info("keydown", event);
 
     if (key === "Control" || key === "Shift" || key === "Alt") {
       return;
@@ -2317,6 +2325,10 @@ function Root() {
 
     const element = getCurrentElement();
     if (isInputElement(element) || isInputElement(target)) {
+      info("current element or event target is input", {
+        element,
+        target,
+      });
       resetState(false);
       return;
     }
@@ -2342,12 +2354,15 @@ function Root() {
     }
 
     const keyRepresentation = getKeyRepresentation(event);
+    info("event key:", keyRepresentation);
 
     if (isPassthrough() && keyRepresentation !== "p") {
+      info("ignoring because passthrough mode");
       return;
     }
 
     if (!actionUniqueKeys[mode].has(keyRepresentation)) {
+      info("ignoring because no listener includes current key");
       return;
     }
 
@@ -2362,6 +2377,8 @@ function Root() {
     event.stopPropagation();
 
     const input = keyInput();
+    info("key input:", input);
+
     const filtered = actionKeyCombinations[mode].filter((key) =>
       key.startsWith(input)
     );
@@ -2387,6 +2404,7 @@ function Root() {
     }
     const mode = currentMode();
     const keyRepresentation = getKeyRepresentation(event);
+    info("keyup", { mode, key: keyRepresentation });
     if (!actionUniqueKeys[mode].has(keyRepresentation)) {
       return;
     }
@@ -2599,7 +2617,7 @@ export default defineContentScript({
   matchOriginAsFallback: true,
   cssInjectionMode: "ui",
   main(ctx) {
-    log("info", "Loaded content script");
+    info("Loaded content script");
 
     const ui = createIntegratedUi(ctx, {
       position: "inline",

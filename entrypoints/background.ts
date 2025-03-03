@@ -1,5 +1,5 @@
 import { Message } from "../Message";
-import { log } from "../Util";
+import { error } from "../Util";
 
 export default defineBackground(() => {
   browser.runtime.onMessage.addListener(async (message: Message) => {
@@ -63,7 +63,7 @@ export default defineBackground(() => {
         break;
       }
       default:
-        log("error", "Unknown message type", message);
+        error("error", "Unknown message type", message);
         break;
     }
   });
