@@ -15,5 +15,6 @@ export default defineConfig({
   modules: ["@wxt-dev/module-solid"],
   runner: {
     startUrls: ["https://en.wikipedia.org"],
+    // startUrls: ["http://localhost:5500"],
   },
 });
