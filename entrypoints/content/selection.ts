@@ -113,6 +113,8 @@ export function selectCurrentParagraph() {
 export function selectCurrentWord() {
   const selection = getSelection();
   if (!selection) return;
-  selection.modify("move", "left", "word");
+  if (selection.isCollapsed) {
+    selection.modify("move", "left", "word");
+  }
   selection.modify("extend", "right", "word");
 }

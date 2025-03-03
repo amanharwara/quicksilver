@@ -1,10 +1,4 @@
-import {
-  Accessor,
-  Component,
-  ComponentProps,
-  JSX,
-  ParentProps,
-} from "solid-js";
+import { Accessor, Component, ComponentProps, JSX } from "solid-js";
 import { Tabs } from "wxt/browser";
 import { Message } from "../../Message";
 import {
@@ -161,10 +155,10 @@ type Highlight =
     };
 
 enum Mode {
-  Normal,
-  Highlight,
-  VisualCaret,
-  VisualRange,
+  Normal = "Normal",
+  Highlight = "Highlight",
+  VisualCaret = "Visual caret",
+  VisualRange = "Visual range",
 }
 
 type Actions = Record<
@@ -211,8 +205,6 @@ const ButtonDefaultStyles: JSX.CSSProperties = {
 const PopupStyles: JSX.CSSProperties = {
   position: "fixed",
   bottom: rem(0.5),
-  left: "50%",
-  translate: "-50% 0",
   display: "flex",
   "flex-direction": "column",
   background: Colors["cb-dark-70"],
@@ -265,6 +257,11 @@ function Popup(props: ComponentProps<"dialog">) {
   );
 }
 
+const ArrowLeftRegEx = /arrowleft/g;
+const ArrowRightRegEx = /arrowright/g;
+const ArrowUpRegEx = /arrowup/g;
+const ArrowDownRegEx = /arrowdown/g;
+const EscapeRegEx = /escape/g;
 const KbdStyles: JSX.CSSProperties = {
   "box-shadow": `inset 0 -2px 0 0 ${Colors["cb-dark-20"]}`,
   "border-radius": rem(0.25),
@@ -272,8 +269,17 @@ const KbdStyles: JSX.CSSProperties = {
   padding: `${rem(0.125)} ${rem(0.325)}`,
   border: "1px solid transparent",
 };
-function Kbd(props: ParentProps) {
-  return <kbd style={KbdStyles}>{props.children}</kbd>;
+function Kbd(props: { key: string }) {
+  return (
+    <kbd style={KbdStyles}>
+      {props.key
+        .replaceAll(EscapeRegEx, "Esc")
+        .replaceAll(ArrowLeftRegEx, "←")
+        .replaceAll(ArrowRightRegEx, "→")
+        .replaceAll(ArrowUpRegEx, "↑")
+        .replaceAll(ArrowDownRegEx, "↓")}
+    </kbd>
+  );
 }
 
 type KeyEventListener = (event: KeyboardEvent) => boolean;
@@ -305,49 +311,77 @@ function handleElementInteraction(
 }
 
 function ActionsHelp(props: {
+  mode: Accessor<Mode>;
   keyInput: string;
-  actionKeys: string[];
-  actions: Actions;
+  actionsHelpByMode: {
+    mode: string;
+    actions: {
+      key: string;
+      desc: string;
+    }[];
+  }[];
 }) {
   return (
-    <Popup>
+    <Popup
+      style={{
+        "--gap": rem(1.65),
+        "--padding": rem(1),
+        "--col-width": "300px",
+        width:
+          "calc(var(--col-width) * 3 + calc(var(--padding) * 2) + var(--scrollbar-width) + calc(var(--gap) * 2))",
+        "max-width": "95%",
+      }}
+    >
       <div
         style={{
-          display: "flex",
-          "flex-direction": "column",
-          gap: rem(0.75),
-          padding: rem(1),
+          display: "grid",
+          "grid-template-columns":
+            "repeat(auto-fit, minmax(min(300px, 100%), 1fr))",
+          padding: "var(--padding)",
           "overflow-y": "auto",
+          gap: "var(--gap)",
+        }}
+        ref={(el) => {
+          setTimeout(() => el.focus());
         }}
       >
-        <For each={props.actionKeys}>
-          {(key) => {
-            const keyInputLength = () => props.keyInput.length;
-            const noKeyInput = () => keyInputLength() === 0;
-            const startsWithKeyInput = () => key.startsWith(props.keyInput);
+        <For each={props.actionsHelpByMode}>
+          {({ mode, actions }) => {
             return (
-              <Show when={noKeyInput() || startsWithKeyInput()}>
+              <Show when={actions.length > 1}>
                 <div
                   style={{
                     display: "flex",
-                    "align-items": "center",
-                    gap: rem(0.75),
+                    "flex-direction": "column",
+                    gap: rem(0.5),
                   }}
                 >
-                  <Kbd>
-                    <Show
-                      when={startsWithKeyInput}
-                      fallback={key.replace(/\s/g, "")}
-                    >
-                      <span style="opacity: 0.5">
-                        {key.slice(0, keyInputLength()).replace(/\s/g, "")}
-                      </span>
-                      <span>
-                        {key.slice(keyInputLength()).replace(/\s/g, "")}
-                      </span>
-                    </Show>
-                  </Kbd>
-                  {props.actions[key].desc}
+                  <div
+                    style={{
+                      "font-weight": "600",
+                      "font-size": "large",
+                    }}
+                  >
+                    {mode}:
+                  </div>
+                  <For each={actions}>
+                    {({ key, desc }) => {
+                      return (
+                        <Show when={true}>
+                          <div
+                            style={{
+                              display: "flex",
+                              "align-items": "center",
+                              gap: rem(0.75),
+                            }}
+                          >
+                            <Kbd key={key.replace(/\s/g, "")} />
+                            {desc}
+                          </div>
+                        </Show>
+                      );
+                    }}
+                  </For>
                 </div>
               </Show>
             );
@@ -1582,7 +1616,7 @@ function CommandPalette(props: {
           >
             <Show when={item.key}>
               <div>
-                <Kbd>{item.key}</Kbd>
+                <Kbd key={item.key!} />
               </div>
             </Show>
             <div class="qs-text-ellipsis">{item.desc}</div>
@@ -1613,11 +1647,9 @@ function Root() {
   );
 
   const state: {
-    activeElement: HTMLElement | null;
     highlightInput: string;
     highlightInteractionMode: ElementInteractionMode;
   } = {
-    activeElement: null,
     highlightInput: "",
     highlightInteractionMode: ElementInteractionMode.Click,
   };
@@ -1627,12 +1659,14 @@ function Root() {
   const [isPassthrough, setIsPassthrough] = createSignal(false);
   const [keyInput, setKeyInput] = createSignal("");
 
-  const [showActionHelp, setShowActionHelp] = createSignal(false);
-  const [showLinkAndButtonList, setShowListAndButtonList] = createSignal(false);
-  const [showMediaList, setShowMediaList] = createSignal(false);
-  const [showTabList, setShowTabList] = createSignal(false);
-  const [showDebugList, setShowDebugList] = createSignal(false);
-  const [showCommandPalette, setShowCommandPalette] = createSignal(false);
+  const [shouldShowActionHelp, toggleActionHelp] = createSignal(false);
+  const [shouldShowLinkAndButtonList, setShowListAndButtonList] =
+    createSignal(false);
+  const [shouldShowMediaList, toggleMediaList] = createSignal(false);
+  const [shouldShowTabList, toggleTabList] = createSignal(false);
+  const [shouldShowDebugList, toggleDebugList] = createSignal(false);
+  const [shouldShowCommandPalette, toggleCommandPalette] = createSignal(false);
+  const [shouldShowConfig, toggleConfig] = createSignal(false);
 
   const [shouldShowDebugInfo, setShouldShowDebugInfo] = createSignal(false);
   createEffect(() => {
@@ -1644,12 +1678,13 @@ function Root() {
   });
 
   function hideAllPopups() {
-    setShowActionHelp(false);
+    toggleActionHelp(false);
     setShowListAndButtonList(false);
-    setShowMediaList(false);
-    setShowTabList(false);
-    setShowCommandPalette(false);
-    setShowDebugList(false);
+    toggleMediaList(false);
+    toggleTabList(false);
+    toggleCommandPalette(false);
+    toggleDebugList(false);
+    toggleConfig(false);
   }
 
   const idToHighlightElementMap = new Map<string, HTMLElement>();
@@ -1802,11 +1837,7 @@ function Root() {
   }
 
   function getCurrentElement() {
-    let element = state.activeElement;
-    if (!element || !element.isConnected) {
-      state.activeElement = element =
-        document.activeElement as HTMLElement | null;
-    }
+    let element = document.activeElement;
     if (!(element instanceof HTMLElement)) {
       return null;
     }
@@ -1900,10 +1931,6 @@ function Root() {
 
   function togglePassthrough() {
     setIsPassthrough((is) => !is);
-  }
-
-  function toggleCommandPalette() {
-    setShowCommandPalette(true);
   }
 
   function openNewTabToRight() {
@@ -2035,11 +2062,11 @@ function Root() {
       },
       "l v": {
         desc: "List all media",
-        fn: () => setShowMediaList((show) => !show),
+        fn: () => toggleMediaList((show) => !show),
       },
       "l t": {
         desc: "List all tabs",
-        fn: () => setShowTabList((show) => !show),
+        fn: () => toggleTabList((show) => !show),
       },
       "n t": {
         desc: "New tab to right",
@@ -2057,11 +2084,14 @@ function Root() {
         desc: "Show help",
         fn: () => {
           hideAllPopups();
-          setShowActionHelp((show) => !show);
+          toggleActionHelp((show) => !show);
         },
       },
       p: { desc: "Toggle passthrough", fn: togglePassthrough },
-      "C-p": { desc: "Show command palette", fn: toggleCommandPalette },
+      "C-p": {
+        desc: "Show command palette",
+        fn: () => toggleCommandPalette(true),
+      },
       v: { desc: "Visual mode", fn: highlightWordsForVisualMode },
     },
     [Mode.Highlight]: {},
@@ -2262,6 +2292,16 @@ function Root() {
       )
     ),
   };
+
+  const actionsHelpByMode = createMemo(() => {
+    return Object.entries(actionsMap).flatMap(([mode, actions]) => ({
+      mode,
+      actions: Object.entries(actions).flatMap(([key, { desc }]) => ({
+        key,
+        desc,
+      })),
+    }));
+  });
 
   function resetState(hidePopups: boolean) {
     if (hidePopups) {
@@ -2503,23 +2543,23 @@ function Root() {
           }}
         />
       </Show>
-      <Show when={keyInput().length > 0 || showActionHelp()}>
+      <Show when={shouldShowActionHelp()}>
         <ActionsHelp
+          mode={currentMode}
           keyInput={keyInput()}
-          actions={actionsMap[currentMode()]}
-          actionKeys={actionKeyCombinations[currentMode()]}
+          actionsHelpByMode={actionsHelpByMode()}
         />
       </Show>
-      <Show when={showLinkAndButtonList()}>
+      <Show when={shouldShowLinkAndButtonList()}>
         <SearchLinksAndButtons />
       </Show>
-      <Show when={showMediaList()}>
+      <Show when={shouldShowMediaList()}>
         <MediaList />
       </Show>
-      <Show when={showTabList()}>
+      <Show when={shouldShowTabList()}>
         <TabList />
       </Show>
-      <Show when={showDebugList()}>
+      <Show when={shouldShowDebugList()}>
         <DebugList />
       </Show>
       <Show when={isPassthrough()}>
@@ -2533,11 +2573,11 @@ function Root() {
           Passthrough
         </div>
       </Show>
-      <Show when={showCommandPalette()}>
+      <Show when={shouldShowCommandPalette()}>
         <CommandPalette
           actions={actionsMap[currentMode()]}
           getCurrentElement={getCurrentElement}
-          showDebugList={() => setShowDebugList(true)}
+          showDebugList={() => toggleDebugList(true)}
         />
       </Show>
       <Show when={currentMode() === Mode.VisualCaret}>
@@ -2566,8 +2606,9 @@ function Root() {
 .qs-text-ellipsis { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
 .qs-input { outline: 0; }
 .qs-input:focus-visible { outline: 2px solid cornflowerblue; }
+.qs-popup { --scrollbar-width: 16px; }
 .qs-popup > * { min-height: 0; }
-.qs-popup ::-webkit-scrollbar { width: 16px; }
+.qs-popup ::-webkit-scrollbar { width: var(--scrollbar-width); }
 .qs-popup ::-webkit-scrollbar-thumb {
   background: ${Colors["cb"]};
   border-radius: ${rem(0.5)};
