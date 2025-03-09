@@ -267,8 +267,13 @@ const KbdStyles: JSX.CSSProperties = {
   "box-shadow": `inset 0 -2px 0 0 ${Colors["cb-dark-20"]}`,
   "border-radius": rem(0.25),
   background: Colors["cb-dark-50"],
+  color: Colors["cb-light-90"],
   padding: `${rem(0.125)} ${rem(0.325)}`,
   border: "1px solid transparent",
+  "font-family":
+    "ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace",
+  "font-size": rem(1),
+  "line-height": "1.25",
 };
 function Kbd(props: { key: string } | { children: JSX.Element }) {
   return (
@@ -1974,7 +1979,7 @@ function Root() {
     if (currentMode() !== Mode.Highlight) {
       state.highlightInteractionMode = ElementInteractionMode.Click;
       highlightElementsBySelector(
-        `:is(a,button,input,[role^="menuitem"],[role="button"],[role="treeitem"]):not(:disabled):not([aria-disabled="true"])`
+        `:is(a,button,input,label,[role^="menuitem"],[role="button"],[role="treeitem"]):not(:disabled):not([aria-disabled="true"])`
       );
     }
   }
@@ -2113,6 +2118,13 @@ function Root() {
 
   const actionsMap: Record<Mode, Actions> = {
     [Mode.Normal]: {
+      "S-?": {
+        desc: "Show help",
+        fn: () => {
+          hideAllPopups();
+          toggleActionHelp((show) => !show);
+        },
+      },
       k: { desc: "Scroll up", fn: scrollUp },
       j: { desc: "Scroll down", fn: scrollDown },
       e: { desc: "Scroll half-page up", fn: scrollHalfPageUp },
@@ -2143,13 +2155,6 @@ function Root() {
       "g f": {
         desc: "Highlight links to open in new tab",
         fn: highlightLinksToOpenInNewTab,
-      },
-      "S-?": {
-        desc: "Show help",
-        fn: () => {
-          hideAllPopups();
-          toggleActionHelp((show) => !show);
-        },
       },
       p: { desc: "Toggle passthrough", fn: togglePassthrough },
       "C-p": {
