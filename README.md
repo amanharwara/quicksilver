@@ -66,13 +66,13 @@ Press <kbd>v</kbd> to highlight all the words visible on the screen and enter vi
 
 Visual caret mode allows moving the selection caret using certain vim motions like <kbd>h</kbd>, <kbd>l</kbd>, <kbd>w</kbd>, <kbd>b</kbd>, etc.
 
-![Screen recording showing navigation in visual caret mode](./screenshots/visual_caret_navigation.mp4)
+https://github.com/user-attachments/assets/87fa67a0-ee07-4610-925a-793900927568
 
 #### Visual range mode
 
 Visual range mode allows extending the selection caret using certain vim motions like <kbd>h</kbd>, <kbd>l</kbd>, <kbd>w</kbd>, <kbd>b</kbd>, etc.
 
-![Screen recording showing navigation in visual range mode](./screenshots/visual_range_navigation.mp4)
+https://github.com/user-attachments/assets/990fee20-36ae-4506-be68-8c6558479f43
 
 ### Others
 
