@@ -257,6 +257,7 @@ function Popup(props: ComponentProps<"dialog">) {
   );
 }
 
+const WhiteSpaceRegEx = /\s/g;
 const ArrowLeftRegEx = /arrowleft/g;
 const ArrowRightRegEx = /arrowright/g;
 const ArrowUpRegEx = /arrowup/g;
@@ -269,15 +270,18 @@ const KbdStyles: JSX.CSSProperties = {
   padding: `${rem(0.125)} ${rem(0.325)}`,
   border: "1px solid transparent",
 };
-function Kbd(props: { key: string }) {
+function Kbd(props: { key: string } | { children: JSX.Element }) {
   return (
     <kbd style={KbdStyles}>
-      {props.key
-        .replaceAll(EscapeRegEx, "Esc")
-        .replaceAll(ArrowLeftRegEx, "←")
-        .replaceAll(ArrowRightRegEx, "→")
-        .replaceAll(ArrowUpRegEx, "↑")
-        .replaceAll(ArrowDownRegEx, "↓")}
+      {"key" in props
+        ? props.key
+            .replaceAll(WhiteSpaceRegEx, "")
+            .replaceAll(EscapeRegEx, "Esc")
+            .replaceAll(ArrowLeftRegEx, "←")
+            .replaceAll(ArrowRightRegEx, "→")
+            .replaceAll(ArrowUpRegEx, "↑")
+            .replaceAll(ArrowDownRegEx, "↓")
+        : props.children}
     </kbd>
   );
 }
@@ -375,13 +379,73 @@ function ActionsHelp(props: {
                               gap: rem(0.75),
                             }}
                           >
-                            <Kbd key={key.replace(/\s/g, "")} />
+                            <Kbd key={key} />
                             {desc}
                           </div>
                         </Show>
                       );
                     }}
                   </For>
+                </div>
+              </Show>
+            );
+          }}
+        </For>
+      </div>
+    </Popup>
+  );
+}
+
+function ActionSuggestion(props: {
+  keyInput: string;
+  actionKeys: string[];
+  actions: Actions;
+}) {
+  return (
+    <Popup>
+      <div
+        style={{
+          display: "flex",
+          "flex-direction": "column",
+          gap: rem(0.75),
+          padding: rem(1),
+          "overflow-y": "auto",
+        }}
+        ref={(el) => {
+          setTimeout(() => el.focus());
+        }}
+      >
+        <For each={props.actionKeys}>
+          {(key) => {
+            const keyInputLength = () => props.keyInput.length;
+            const startsWithKeyInput = () => key.startsWith(props.keyInput);
+            return (
+              <Show when={startsWithKeyInput()}>
+                <div
+                  style={{
+                    display: "flex",
+                    "align-items": "center",
+                    gap: rem(0.75),
+                  }}
+                >
+                  <Kbd>
+                    <Show
+                      when={startsWithKeyInput}
+                      fallback={key.replace(WhiteSpaceRegEx, "")}
+                    >
+                      <span style="opacity: 0.5">
+                        {key
+                          .slice(0, keyInputLength())
+                          .replace(WhiteSpaceRegEx, "")}
+                      </span>
+                      <span>
+                        {key
+                          .slice(keyInputLength())
+                          .replace(WhiteSpaceRegEx, "")}
+                      </span>
+                    </Show>
+                  </Kbd>
+                  {props.actions[key].desc}
                 </div>
               </Show>
             );
@@ -2274,21 +2338,23 @@ function Root() {
 
   const actionUniqueKeys: Record<Mode, Set<string>> = {
     [Mode.Normal]: new Set(
-      actionKeyCombinations[Mode.Normal].flatMap((kc) => kc.split(" "))
+      actionKeyCombinations[Mode.Normal].flatMap((kc) =>
+        kc.split(WhiteSpaceRegEx)
+      )
     ),
     [Mode.Highlight]: new Set(
       actionKeyCombinations[Mode.Highlight].flatMap((kc) =>
-        kc.replace(/[CSA]-/g, "").split(" ")
+        kc.split(WhiteSpaceRegEx)
       )
     ),
     [Mode.VisualCaret]: new Set(
       actionKeyCombinations[Mode.VisualCaret].flatMap((kc) =>
-        kc.replace(/[CSA]-/g, "").split(" ")
+        kc.split(WhiteSpaceRegEx)
       )
     ),
     [Mode.VisualRange]: new Set(
       actionKeyCombinations[Mode.VisualRange].flatMap((kc) =>
-        kc.replace(/[CSA]-/g, "").split(" ")
+        kc.split(WhiteSpaceRegEx)
       )
     ),
   };
@@ -2548,6 +2614,13 @@ function Root() {
           mode={currentMode}
           keyInput={keyInput()}
           actionsHelpByMode={actionsHelpByMode()}
+        />
+      </Show>
+      <Show when={keyInput().length > 0}>
+        <ActionSuggestion
+          keyInput={keyInput()}
+          actionKeys={actionKeyCombinations[currentMode()]}
+          actions={actionsMap[currentMode()]}
         />
       </Show>
       <Show when={shouldShowLinkAndButtonList()}>
