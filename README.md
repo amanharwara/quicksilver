@@ -4,26 +4,30 @@ Browser extension for better movement using the keyboard.
 
 ## Development
 
+### Install dependencies
+
 ```console
+corepack enable
 yarn install
+```
+
+### Start temp browser instance with hot-reload
+
+```console
 yarn dev
 ```
 
 Starts a new temporary chromium/chrome instance with the extension loaded and the wikipedia homepage opened. Pass `-b firefox` to start a firefox instance instead.
 
-## Building
-
-### Firefox
+### Building for Firefox
 
 ```console
-yarn install
 yarn zip:firefox
 ```
 
-### Chrome
+### Building for Chrome
 
 ```console
-yarn install
 yarn zip:chrome
 ```
 

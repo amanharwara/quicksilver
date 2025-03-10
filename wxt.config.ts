@@ -10,6 +10,14 @@ export default defineConfig({
     return {
       permissions,
       host_permissions: ["http://*/*", "https://*/*"],
+      browser_specific_settings:
+        browser === "firefox"
+          ? {
+              gecko: {
+                id: "{22df968b-e226-4160-8f4f-f0033429aebb}",
+              },
+            }
+          : undefined,
     };
   },
   modules: ["@wxt-dev/module-solid"],
