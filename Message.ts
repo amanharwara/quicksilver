@@ -16,6 +16,12 @@ export type Message =
       type: "open-new-tab-next-to-current";
     }
   | {
+      type: "go-to-prev-tab";
+    }
+  | {
+      type: "go-to-next-tab";
+    }
+  | {
       type: "close-tab";
       tabId: Tabs.Tab["id"];
     };

@@ -125,11 +125,16 @@ function createElement(
   return element;
 }
 
+const LEADER_KEY = " ";
+
 function getKeyRepresentation(event: KeyboardEvent) {
-  const { ctrlKey, shiftKey, altKey, key } = event;
-  return `${ctrlKey ? "C-" : ""}${shiftKey ? "S-" : ""}${
-    altKey ? "A-" : ""
-  }${key.toLowerCase()}`;
+  const { ctrlKey, shiftKey, altKey, key: eventKey } = event;
+  let key = eventKey.toLowerCase();
+  if (key === LEADER_KEY) {
+    key = "<leader>";
+  }
+  return `${ctrlKey ? "C-" : ""}${shiftKey ? "S-" : ""}${altKey ? "A-" : ""
+    }${key}`;
 }
 
 enum ElementInteractionMode {
@@ -146,13 +151,13 @@ type WordInNode = {
 
 type Highlight =
   | {
-      type: "element";
-      element: HTMLElement;
-    }
+    type: "element";
+    element: HTMLElement;
+  }
   | {
-      type: "word";
-      word: WordInNode;
-    };
+    type: "word";
+    word: WordInNode;
+  };
 
 enum Mode {
   Normal = "Normal",
@@ -280,12 +285,12 @@ function Kbd(props: { key: string } | { children: JSX.Element }) {
     <kbd style={KbdStyles}>
       {"key" in props
         ? props.key
-            .replaceAll(WhiteSpaceRegEx, "")
-            .replaceAll(EscapeRegEx, "Esc")
-            .replaceAll(ArrowLeftRegEx, "←")
-            .replaceAll(ArrowRightRegEx, "→")
-            .replaceAll(ArrowUpRegEx, "↑")
-            .replaceAll(ArrowDownRegEx, "↓")
+          .replaceAll(WhiteSpaceRegEx, "")
+          .replaceAll(EscapeRegEx, "Esc")
+          .replaceAll(ArrowLeftRegEx, "←")
+          .replaceAll(ArrowRightRegEx, "→")
+          .replaceAll(ArrowUpRegEx, "↑")
+          .replaceAll(ArrowDownRegEx, "↓")
         : props.children}
     </kbd>
   );
@@ -1579,7 +1584,7 @@ function TabList() {
           filter={(item, lowercaseQuery) =>
             Boolean(
               item.title?.toLowerCase().includes(lowercaseQuery) ||
-                item.url?.toLowerCase().includes(lowercaseQuery)
+              item.url?.toLowerCase().includes(lowercaseQuery)
             )
           }
           handleSelect={function selectTab(item) {
@@ -1608,7 +1613,7 @@ function TabList() {
   );
 }
 
-function noop() {}
+function noop() { }
 
 function DebugList() {
   const debug: number[] = [];
@@ -1694,7 +1699,7 @@ function CommandPalette(props: {
         filter={({ key, desc }, lowercaseQuery) => {
           return Boolean(
             key?.toLowerCase().includes(lowercaseQuery) ||
-              desc.toLowerCase().includes(lowercaseQuery)
+            desc.toLowerCase().includes(lowercaseQuery)
           );
         }}
         handleSelect={handleSelect}
@@ -2144,10 +2149,6 @@ function Root() {
         desc: "List all tabs",
         fn: () => toggleTabList((show) => !show),
       },
-      "n t": {
-        desc: "New tab to right",
-        fn: openNewTabToRight,
-      },
       f: {
         desc: "Highlight links, buttons and inputs",
         fn: highlightInteractiveElements,
@@ -2162,6 +2163,26 @@ function Root() {
         fn: () => toggleCommandPalette(true),
       },
       v: { desc: "Visual mode", fn: highlightWordsForVisualMode },
+      "<leader> t [": {
+        desc: "Go to previous tab",
+        fn: function goToPreviousTab() {
+          browser.runtime.sendMessage({
+            type: "go-to-prev-tab",
+          } satisfies Message)
+        },
+      },
+      "<leader> t ]": {
+        desc: "Go to next tab",
+        fn: function goToNextTab() {
+          browser.runtime.sendMessage({
+            type: "go-to-next-tab",
+          } satisfies Message)
+        },
+      },
+      "<leader> t n": {
+        desc: "New tab to right",
+        fn: openNewTabToRight,
+      },
     },
     [Mode.Highlight]: {},
     [Mode.VisualCaret]: {
@@ -2695,9 +2716,8 @@ function Root() {
 }
 .qs-popup:focus-visible, .qs-popup *:focus-visible { outline: 2px solid cornflowerblue; }
 .qs-list-item { --is-hovered: 0; background: transparent; }
-.qs-list-item:hover, .qs-list-item.active { --is-hovered: 1; background: ${
-        Colors["cb-dark-60"]
-      }; }
+.qs-list-item:hover, .qs-list-item.active { --is-hovered: 1; background: ${Colors["cb-dark-60"]
+        }; }
 .qs-outline-btn { background: transparent; }
 .qs-outline-btn:hover { background: ${Colors["cb-dark-60"]}; }
 .qs-outline-btn:focus-visible { outline: 2px solid cornflowerblue; }
