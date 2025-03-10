@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        default: true
+        type: boolean
+        description: Skip submission and perform a dry run
+  push:
+    tags:
+      - "*.*"
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "yarn"
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Zip extensions
+        run: |
+          yarn zip:chrome
+          yarn zip:firefox
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          path: .output/*.zip
+          if-no-files-found: error
+          include-hidden-files: true
+
+      - name: Submit to stores
+        run: |
+          yarn wxt submit \
+            --firefox-zip .output/*-firefox.zip --firefox-sources-zip .output/*-sources.zip
+        env:
+          DRY_RUN: ${{ inputs.dryRun }}
+          FIREFOX_EXTENSION_ID: ${{ secrets.FIREFOX_EXTENSION_ID }}
+          FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
+          FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
+
+      - name: Github Release
+        if: ${{ !inputs.dryRun }}
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          prerelease: false
+          files: |
+            .output/*-chrome.zip
+            .output/*-firefox.zip
