@@ -5,6 +5,7 @@ Browser extension for better movement using the keyboard.
 ## Development
 
 ```console
+yarn install
 yarn dev
 ```
 
@@ -15,12 +16,14 @@ Starts a new temporary chromium/chrome instance with the extension loaded and th
 ### Firefox
 
 ```console
+yarn install
 yarn zip:firefox
 ```
 
 ### Chrome
 
 ```console
+yarn install
 yarn zip:chrome
 ```
 
