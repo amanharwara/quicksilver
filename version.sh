@@ -13,7 +13,7 @@ new_version=$(jq -r .version package.json)
 
 git add --all
 git commit -m "v$new_version"
-git tag -m "v$new_version"
+git tag -m "v$new_version" $new_version
 git push
 git push --tags
 
