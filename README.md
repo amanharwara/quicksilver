@@ -2,6 +2,10 @@
 
 Browser extension for better movement using the keyboard.
 
+## Installation
+
+Firefox: https://addons.mozilla.org/en-US/firefox/addon/quicksilver-1/
+
 ## Development
 
 ### Install dependencies
