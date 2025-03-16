@@ -2049,7 +2049,7 @@ function Root() {
     if (currentMode() !== Mode.Highlight) {
       state.highlightInteractionMode = ElementInteractionMode.Click;
       highlightElementsBySelector(
-        `:is(a,button,input,label,[role^="menuitem"],[role="button"],[role="treeitem"]):not(:disabled):not([aria-disabled="true"])`
+        `:is(a,button,input,label,[role^="menuitem"],[role="button"],[role="treeitem"],[role="radio"]):not(:disabled):not([aria-disabled="true"])`
       );
     }
   }
