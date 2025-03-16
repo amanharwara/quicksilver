@@ -2,6 +2,7 @@ import { Accessor, Component, ComponentProps, JSX } from "solid-js";
 import { Tabs } from "wxt/browser";
 import { Message } from "../../Message";
 import {
+  ArrowBigUpIcon,
   ChevronDownIcon,
   LoopIcon,
   MuteIcon,
@@ -269,6 +270,8 @@ const ArrowRightRegEx = /arrowright/g;
 const ArrowUpRegEx = /arrowup/g;
 const ArrowDownRegEx = /arrowdown/g;
 const EscapeRegEx = /escape/g;
+const ShiftRegEx = /S-/g;
+const CtrlRegEx = /C-/g;
 const KbdStyles: JSX.CSSProperties = {
   "box-shadow": `inset 0 -2px 0 0 ${Colors["cb-dark-20"]}`,
   "border-radius": rem(0.25),
@@ -281,19 +284,61 @@ const KbdStyles: JSX.CSSProperties = {
   "font-size": rem(1),
   "line-height": "1.25",
 };
-function Kbd(props: { key: string } | { children: JSX.Element }) {
+function replaceKeyChars(key: string) {
+  return key
+    .replaceAll(WhiteSpaceRegEx, "")
+    .replaceAll(EscapeRegEx, "⎋")
+    .replaceAll(ArrowLeftRegEx, "←")
+    .replaceAll(ArrowRightRegEx, "→")
+    .replaceAll(ArrowUpRegEx, "↑")
+    .replaceAll(ArrowDownRegEx, "↓")
+    .replaceAll(ShiftRegEx, "⇧")
+    .replaceAll(CtrlRegEx, "⎈");
+}
+function getAllKeysFromCombo(combo: string) {
+  return replaceKeyChars(combo).split("");
+}
+function Key(props: { key: string; style?: JSX.CSSProperties }) {
   return (
-    <kbd style={KbdStyles}>
-      {"key" in props
-        ? props.key
-            .replaceAll(WhiteSpaceRegEx, "")
-            .replaceAll(EscapeRegEx, "Esc")
-            .replaceAll(ArrowLeftRegEx, "←")
-            .replaceAll(ArrowRightRegEx, "→")
-            .replaceAll(ArrowUpRegEx, "↑")
-            .replaceAll(ArrowDownRegEx, "↓")
-        : props.children}
+    <kbd
+      style={{
+        ...KbdStyles,
+        padding:
+          props.key === "⇧"
+            ? `${rem(0.125)} ${rem(0.15)}`
+            : KbdStyles["padding"],
+        ...props.style,
+      }}
+    >
+      <Switch fallback={props.key}>
+        <Match when={props.key === "⇧"}>
+          <ArrowBigUpIcon
+            style={{
+              width: rem(1),
+              height: rem(1),
+              "vertical-align": "middle",
+            }}
+          />
+        </Match>
+        <Match when={props.key === "⎈"}>Ctrl</Match>
+        <Match when={props.key === "⎋"}>Esc</Match>
+      </Switch>
     </kbd>
+  );
+}
+function KeyCombo(props: { combo: string }) {
+  const keys = createMemo(() => getAllKeysFromCombo(props.combo));
+  return (
+    <Show when={keys().length > 0}>
+      <div
+        style={{
+          display: "flex",
+          gap: rem(0.35),
+        }}
+      >
+        <For each={keys()}>{(key) => <Key key={key} />}</For>
+      </div>
+    </Show>
   );
 }
 
@@ -390,7 +435,7 @@ function ActionsHelp(props: {
                               gap: rem(0.75),
                             }}
                           >
-                            <Kbd key={key} />
+                            <KeyCombo combo={key} />
                             {desc}
                           </div>
                         </Show>
@@ -428,7 +473,9 @@ function ActionSuggestion(props: {
       >
         <For each={props.actionKeys}>
           {(key) => {
-            const keyInputLength = () => props.keyInput.length;
+            const keys = () => getAllKeysFromCombo(key);
+            const keysFromKeyInput = () => getAllKeysFromCombo(props.keyInput);
+            const keyInputLength = () => keysFromKeyInput().length;
             const startsWithKeyInput = () => key.startsWith(props.keyInput);
             return (
               <Show when={startsWithKeyInput()}>
@@ -439,23 +486,25 @@ function ActionSuggestion(props: {
                     gap: rem(0.75),
                   }}
                 >
-                  <Kbd>
-                    <Show
-                      when={startsWithKeyInput}
-                      fallback={key.replace(WhiteSpaceRegEx, "")}
-                    >
-                      <span style="opacity: 0.5">
-                        {key
-                          .slice(0, keyInputLength())
-                          .replace(WhiteSpaceRegEx, "")}
-                      </span>
-                      <span>
-                        {key
-                          .slice(keyInputLength())
-                          .replace(WhiteSpaceRegEx, "")}
-                      </span>
-                    </Show>
-                  </Kbd>
+                  <div
+                    style={{
+                      display: "flex",
+                      "align-items": "center",
+                      gap: rem(0.25),
+                    }}
+                  >
+                    <For each={keys()}>
+                      {(key, index) => (
+                        <Key
+                          key={key}
+                          style={{
+                            opacity:
+                              index() < keyInputLength() ? "0.5" : undefined,
+                          }}
+                        />
+                      )}
+                    </For>
+                  </div>
                   {props.actions[key].desc}
                 </div>
               </Show>
@@ -1018,6 +1067,20 @@ function PlaybackRateMenu(props: {
   );
 }
 
+function increaseMediaPlaybackRate(
+  media: HTMLMediaElement,
+  by = 0.25,
+  max = 2.5
+) {
+  const currentRate = media.playbackRate;
+  media.playbackRate = Math.min(currentRate + by, max);
+}
+
+function decreaseMediaPlaybackRate(media: HTMLMediaElement, by = 0.25) {
+  const currentRate = media.playbackRate;
+  media.playbackRate = Math.max(currentRate - by, 0);
+}
+
 function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
   const [isPlaying, setIsPlaying] = createSignal(!props.media.paused);
   const [currentTime, setCurrentTime] = createSignal(props.media.currentTime);
@@ -1136,15 +1199,13 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
         case "S-<": {
           event.preventDefault();
           event.stopImmediatePropagation();
-          const currentRate = props.media.playbackRate;
-          props.media.playbackRate = Math.max(currentRate - 0.25, 0);
+          decreaseMediaPlaybackRate(props.media);
           return true;
         }
         case "S->": {
           event.preventDefault();
           event.stopImmediatePropagation();
-          const currentRate = props.media.playbackRate;
-          props.media.playbackRate = Math.min(currentRate + 0.25, 2.5);
+          increaseMediaPlaybackRate(props.media);
           return true;
         }
         case "m": {
@@ -1687,14 +1748,17 @@ function CommandPalette(props: {
         items={commands}
         itemContent={(item) => (
           <div
-            style={{ display: "flex", "align-items": "center", gap: rem(1) }}
+            style={{
+              display: "flex",
+              "align-items": "center",
+              "justify-content": "space-between",
+              gap: rem(1),
+            }}
           >
-            <Show when={item.key}>
-              <div>
-                <Kbd key={item.key!} />
-              </div>
-            </Show>
             <div class="qs-text-ellipsis">{item.desc}</div>
+            <Show when={item.key}>
+              <KeyCombo combo={item.key!} />
+            </Show>
           </div>
         )}
         filter={({ key, desc }, lowercaseQuery) => {
@@ -2122,6 +2186,46 @@ function Root() {
     }
   }
 
+  function getVisibleVideo() {
+    const videos = Array.from(document.querySelectorAll("video"));
+    const windowHeight = window.innerHeight;
+    for (let i = 0; i < videos.length; i++) {
+      const video = videos[i];
+      const rect = video.getBoundingClientRect();
+      const isInViewport =
+        rect.top >= 0 &&
+        rect.top < windowHeight &&
+        rect.width > 0 &&
+        rect.height > 0;
+      if (!isInViewport) {
+        continue;
+      }
+      return video;
+    }
+  }
+
+  function toggleVisibleVideo() {
+    const video = getVisibleVideo();
+    if (!video) return;
+    if (video.paused) {
+      video.play();
+    } else {
+      video.pause();
+    }
+  }
+
+  function increaseVisibleVideoRate() {
+    const video = getVisibleVideo();
+    if (!video) return;
+    increaseMediaPlaybackRate(video);
+  }
+
+  function decreaseVisibleVideoRate() {
+    const video = getVisibleVideo();
+    if (!video) return;
+    decreaseMediaPlaybackRate(video);
+  }
+
   const actionsMap: Record<Mode, Actions> = {
     [Mode.Normal]: {
       "S-?": {
@@ -2183,6 +2287,18 @@ function Root() {
       "w t n": {
         desc: "New tab to right",
         fn: openNewTabToRight,
+      },
+      "w v p": {
+        desc: "Play/pause visible video",
+        fn: toggleVisibleVideo,
+      },
+      "w v S-<": {
+        desc: "Decrease video playback rate",
+        fn: decreaseVisibleVideoRate,
+      },
+      "w v S->": {
+        desc: "Increase video playback rate",
+        fn: increaseVisibleVideoRate,
       },
     },
     [Mode.Highlight]: {},
@@ -2644,7 +2760,7 @@ function Root() {
           actionsHelpByMode={actionsHelpByMode()}
         />
       </Show>
-      <Show when={keyInput().length > 0}>
+      <Show when={keyInput().length > 0 && !shouldShowActionHelp()}>
         <ActionSuggestion
           keyInput={keyInput()}
           actionKeys={actionKeyCombinations[currentMode()]}
