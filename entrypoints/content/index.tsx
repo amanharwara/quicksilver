@@ -2186,46 +2186,6 @@ function Root() {
     }
   }
 
-  function getVisibleVideo() {
-    const videos = Array.from(document.querySelectorAll("video"));
-    const windowHeight = window.innerHeight;
-    for (let i = 0; i < videos.length; i++) {
-      const video = videos[i];
-      const rect = video.getBoundingClientRect();
-      const isInViewport =
-        rect.top >= 0 &&
-        rect.top < windowHeight &&
-        rect.width > 0 &&
-        rect.height > 0;
-      if (!isInViewport) {
-        continue;
-      }
-      return video;
-    }
-  }
-
-  function toggleVisibleVideo() {
-    const video = getVisibleVideo();
-    if (!video) return;
-    if (video.paused) {
-      video.play();
-    } else {
-      video.pause();
-    }
-  }
-
-  function increaseVisibleVideoRate() {
-    const video = getVisibleVideo();
-    if (!video) return;
-    increaseMediaPlaybackRate(video);
-  }
-
-  function decreaseVisibleVideoRate() {
-    const video = getVisibleVideo();
-    if (!video) return;
-    decreaseMediaPlaybackRate(video);
-  }
-
   const actionsMap: Record<Mode, Actions> = {
     [Mode.Normal]: {
       "S-?": {
@@ -2287,18 +2247,6 @@ function Root() {
       "w t n": {
         desc: "New tab to right",
         fn: openNewTabToRight,
-      },
-      "w v p": {
-        desc: "Play/pause visible video",
-        fn: toggleVisibleVideo,
-      },
-      "w v S-<": {
-        desc: "Decrease video playback rate",
-        fn: decreaseVisibleVideoRate,
-      },
-      "w v S->": {
-        desc: "Increase video playback rate",
-        fn: increaseVisibleVideoRate,
       },
     },
     [Mode.Highlight]: {},
