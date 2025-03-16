@@ -56,6 +56,8 @@ jobs:
         if: ${{ !inputs.dryRun }}
         uses: softprops/action-gh-release@v2
         with:
+          name: v${{ github.ref_name }}
+          generate_release_notes: true
           draft: false
           prerelease: false
           files: |
