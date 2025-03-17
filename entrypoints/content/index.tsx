@@ -2534,6 +2534,10 @@ function Root() {
     const mode = currentMode();
 
     if (key === "Escape" && !actionUniqueKeys[mode].has("escape")) {
+      if (mode !== Mode.Normal || keyInput().length > 0) {
+        event.stopImmediatePropagation();
+        event.stopPropagation();
+      }
       resetState(true);
       return;
     }
