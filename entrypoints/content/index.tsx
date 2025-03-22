@@ -11,7 +11,7 @@ import {
   SlidersHorizontalIcon,
   VolumeIcon,
 } from "../../shared/icons";
-import { disableLogging, enableLogging, info } from "../../shared/log";
+import { disableLogging, enableLogging, error, info } from "../../shared/log";
 import {
   collapseSelectionToEnd,
   extendSelectionByCharToLeft,
@@ -33,7 +33,11 @@ import {
   selectCurrentParagraph,
   selectCurrentWord,
 } from "./selection";
-import { disabledGlobally } from "../../shared/storage";
+import {
+  Blocklist,
+  disabledGlobally,
+  storedBlocklist,
+} from "../../shared/storage";
 
 const mainContext = createContext<{
   shouldShowDebugInfo: Accessor<boolean>;
@@ -2498,7 +2502,45 @@ function Root() {
     );
   }
 
+  const [isDisabledGlobally, setIsDisabledGlobally] = createSignal(false);
+  const [isDisabledOnPage, setIsDisabledOnPage] = createSignal(false);
+  const isExtensionDisabled = () => isDisabledGlobally() || isDisabledOnPage();
+  function disableForPageIfOnBlocklist(blocklist: Blocklist) {
+    let rulesMatched = 0;
+    for (const rule of blocklist) {
+      if (!rule.enabled) continue;
+      const value = rule.value;
+      if (rule.type === "exact" && value === location.toString()) {
+        rulesMatched++;
+      } else if (
+        rule.type === "domain" &&
+        location.hostname.endsWith(rule.value)
+      ) {
+        rulesMatched++;
+      } else if (
+        rule.type === "prefix" &&
+        location.toString().startsWith(value)
+      ) {
+        rulesMatched++;
+      } else if (
+        rule.type === "regexp" &&
+        new RegExp(rule.value).test(location.toString())
+      ) {
+        rulesMatched++;
+      }
+    }
+    setIsDisabledOnPage(rulesMatched > 0);
+  }
+
+  createEffect(() => {
+    if (isExtensionDisabled()) {
+      resetState(true);
+    }
+  });
+
   const mainKeydownListener = (event: KeyboardEvent) => {
+    if (isExtensionDisabled()) return;
+
     if (keydownListeners.size > 0) {
       const listeners = Array.from(keydownListeners);
       for (let i = listeners.length - 1; i >= 0; i--) {
@@ -2590,6 +2632,8 @@ function Root() {
   };
 
   const mainKeyupListener = (event: KeyboardEvent) => {
+    if (isExtensionDisabled()) return;
+
     if (keyupListeners.size > 0) {
       const listeners = Array.from(keyupListeners);
       for (let i = listeners.length - 1; i >= 0; i--) {
@@ -2611,7 +2655,7 @@ function Root() {
   };
 
   const selectionChangeListener = () => {
-    if (!collapsedCaret) return;
+    if (!collapsedCaret || isExtensionDisabled()) return;
 
     const selection = getSelection();
     if (!selection || !selection.isCollapsed) {
@@ -2625,42 +2669,42 @@ function Root() {
     collapsedCaret.style.translate = `${rect.x}px ${rect.y}px`;
   };
 
-  const [controller, setController] = createSignal(new AbortController());
+  const controller = new AbortController();
 
   function addEventListeners() {
-    controller().abort();
-    setController(new AbortController());
-
     document.addEventListener("selectionchange", selectionChangeListener, {
-      signal: controller().signal,
+      signal: controller.signal,
     });
     document.body.addEventListener("keydown", mainKeydownListener, {
       capture: true,
-      signal: controller().signal,
+      signal: controller.signal,
     });
     document.body.addEventListener("keyup", mainKeyupListener, {
       capture: true,
-      signal: controller().signal,
+      signal: controller.signal,
     });
   }
 
   onMount(() => {
     addEventListeners();
 
-    const unwatchDisabledGlobally = disabledGlobally.watch((disabled) => {
-      if (disabled) {
-        controller().abort();
-      } else {
-        addEventListeners();
-      }
-    });
+    disabledGlobally.getValue().then(setIsDisabledGlobally).catch(error);
+    const unwatchDisabledGlobally = disabledGlobally.watch(
+      setIsDisabledGlobally
+    );
+
+    storedBlocklist.getValue().then(disableForPageIfOnBlocklist).catch(error);
+    const unwatchStoredBlocklist = storedBlocklist.watch(
+      disableForPageIfOnBlocklist
+    );
 
     onCleanup(() => {
       unwatchDisabledGlobally();
+      unwatchStoredBlocklist();
     });
   });
   onCleanup(() => {
-    controller().abort();
+    controller.abort();
   });
 
   return (

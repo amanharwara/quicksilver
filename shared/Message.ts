@@ -5,6 +5,9 @@ export type Message =
       type: "get-all-tabs";
     }
   | {
+      type: "get-active-tab";
+    }
+  | {
       type: "activate-tab";
       tabId: Tabs.Tab["id"];
     }

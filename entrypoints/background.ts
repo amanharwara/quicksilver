@@ -94,6 +94,13 @@ export default defineBackground(() => {
         });
         break;
       }
+      case "get-active-tab":
+        const [activeTab] = await browser.tabs.query({
+          active: true,
+          lastFocusedWindow: true,
+        });
+        return activeTab;
+        break;
       default:
         error("error", "Unknown message type", message);
         break;

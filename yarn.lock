@@ -3906,6 +3906,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"nanoid@npm:^5.1.5":
+  version: 5.1.5
+  resolution: "nanoid@npm:5.1.5"
+  bin:
+    nanoid: bin/nanoid.js
+  checksum: 10c0/e6004f1ad6c7123eeb037062c4441d44982037dc043aabb162457ef6986e99964ba98c63c975f96c547403beb0bf95bc537bd7bf9a09baf381656acdc2975c3c
+  languageName: node
+  linkType: hard
+
 "ncp@npm:~2.0.0":
   version: 2.0.0
   resolution: "ncp@npm:2.0.0"
@@ -4477,6 +4486,7 @@ __metadata:
     "@tailwindcss/vite": "npm:^4.0.14"
     "@types/chrome": "npm:^0.0.269"
     "@wxt-dev/module-solid": "npm:^1.1.2"
+    nanoid: "npm:^5.1.5"
     solid-js: "npm:^1.9.4"
     tailwindcss: "npm:^4.0.14"
     typescript: "npm:^5.6.2"
