@@ -1,6 +1,6 @@
 import { Accessor, Component, ComponentProps, JSX } from "solid-js";
 import { Tabs } from "wxt/browser";
-import { Message } from "../../Message";
+import { Message } from "../../shared/Message";
 import {
   ArrowBigUpIcon,
   ChevronDownIcon,
@@ -9,8 +9,9 @@ import {
   PauseIcon,
   PlayIcon,
   SlidersHorizontalIcon,
-} from "./icons";
-import { disableLogging, enableLogging, info } from "../../Util";
+  VolumeIcon,
+} from "../../shared/icons";
+import { disableLogging, enableLogging, info } from "../../shared/log";
 import {
   collapseSelectionToEnd,
   extendSelectionByCharToLeft,
@@ -32,6 +33,7 @@ import {
   selectCurrentParagraph,
   selectCurrentWord,
 } from "./selection";
+import { disabledGlobally } from "../../shared/storage";
 
 const mainContext = createContext<{
   shouldShowDebugInfo: Accessor<boolean>;
@@ -386,7 +388,7 @@ function ActionsHelp(props: {
       style={{
         "--gap": rem(1.65),
         "--padding": rem(1),
-        "--col-width": "300px",
+        "--col-width": "325px",
         width:
           "calc(var(--col-width) * 3 + calc(var(--padding) * 2) + var(--scrollbar-width) + calc(var(--gap) * 2))",
         "max-width": "95%",
@@ -951,11 +953,12 @@ function SearchLinksAndButtons() {
 function Toggle(props: {
   active: boolean;
   onChange: (active: boolean) => void;
-  label: JSX.Element;
+  label: string;
   icon: Component<ComponentProps<"svg">>;
 }) {
   return (
     <label
+      title={props.label}
       classList={{
         "qs-outline-btn": true,
         "qs-toggle": true,
@@ -1365,12 +1368,8 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
         <Toggle
           active={muted()}
           onChange={() => (props.media.muted = !props.media.muted)}
-          icon={MuteIcon}
-          label={
-            <Show when={muted()} fallback={"Mute"}>
-              Unmute
-            </Show>
-          }
+          icon={muted() ? MuteIcon : VolumeIcon}
+          label={muted() ? "Unmute" : "Mute"}
         />
         <input
           type="range"
@@ -1520,20 +1519,16 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
           }
           icon={SlidersHorizontalIcon}
           label={
-            <Show when={showNativeControls()} fallback={"Show native controls"}>
-              Hide native controls
-            </Show>
+            showNativeControls()
+              ? "Hide native controls"
+              : "Show native controls"
           }
         />
         <Toggle
           active={loop()}
           onChange={() => setLoop((props.media.loop = !props.media.loop))}
           icon={LoopIcon}
-          label={
-            <Show when={loop()} fallback={"Loop"}>
-              Disable looping
-            </Show>
-          }
+          label={loop() ? "Disable looping" : "Loop"}
         />
       </div>
     </Popup>
@@ -2630,24 +2625,42 @@ function Root() {
     collapsedCaret.style.translate = `${rect.x}px ${rect.y}px`;
   };
 
-  const controller = new AbortController();
+  const [controller, setController] = createSignal(new AbortController());
 
-  onMount(() => {
+  function addEventListeners() {
+    controller().abort();
+    setController(new AbortController());
+
     document.addEventListener("selectionchange", selectionChangeListener, {
-      signal: controller.signal,
+      signal: controller().signal,
     });
     document.body.addEventListener("keydown", mainKeydownListener, {
       capture: true,
-      signal: controller.signal,
+      signal: controller().signal,
     });
     document.body.addEventListener("keyup", mainKeyupListener, {
       capture: true,
-      signal: controller.signal,
+      signal: controller().signal,
+    });
+  }
+
+  onMount(() => {
+    addEventListeners();
+
+    const unwatchDisabledGlobally = disabledGlobally.watch((disabled) => {
+      if (disabled) {
+        controller().abort();
+      } else {
+        addEventListeners();
+      }
+    });
+
+    onCleanup(() => {
+      unwatchDisabledGlobally();
     });
   });
-
   onCleanup(() => {
-    controller.abort();
+    controller().abort();
   });
 
   return (

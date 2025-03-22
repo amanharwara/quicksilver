@@ -1,9 +1,10 @@
+import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "wxt";
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   manifest: ({ browser }) => {
-    const permissions: string[] = ["tabs", "clipboardWrite"];
+    const permissions: string[] = ["tabs", "clipboardWrite", "storage"];
     if (browser === "firefox") {
       permissions.push("contextualIdentities", "cookies");
     }
@@ -25,4 +26,7 @@ export default defineConfig({
     startUrls: ["https://en.wikipedia.org"],
     // startUrls: ["http://localhost:5500"],
   },
+  vite: () => ({
+    plugins: [tailwindcss()],
+  }),
 });

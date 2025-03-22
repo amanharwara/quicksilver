@@ -5,7 +5,7 @@
   "version": "0.1.4",
   "type": "module",
   "scripts": {
-    "dev": "wxt",
+    "dev": "wxt -b chromium",
     "dev:firefox": "wxt -b firefox",
     "build": "wxt build",
     "build:firefox": "wxt build -b firefox",
@@ -15,7 +15,9 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
-    "solid-js": "^1.9.4"
+    "@tailwindcss/vite": "^4.0.14",
+    "solid-js": "^1.9.4",
+    "tailwindcss": "^4.0.14"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.269",

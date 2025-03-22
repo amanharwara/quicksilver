@@ -1,5 +1,5 @@
-import { Message } from "../Message";
-import { error } from "../Util";
+import { Message } from "../shared/Message";
+import { error } from "../shared/log";
 
 function isNumber(n: number | undefined): n is number {
   return typeof n === "number";
@@ -71,8 +71,8 @@ export default defineBackground(() => {
           index: activeTabIndex + 1,
           ...(import.meta.env.FIREFOX
             ? {
-              cookieStoreId: activeTab.cookieStoreId,
-            }
+                cookieStoreId: activeTab.cookieStoreId,
+              }
             : {}),
         });
         break;
@@ -88,8 +88,8 @@ export default defineBackground(() => {
           index: activeTabIndex + 1,
           ...(import.meta.env.FIREFOX
             ? {
-              cookieStoreId: activeTab.cookieStoreId,
-            }
+                cookieStoreId: activeTab.cookieStoreId,
+              }
             : {}),
         });
         break;
