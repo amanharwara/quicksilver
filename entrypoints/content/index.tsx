@@ -149,6 +149,7 @@ enum ElementInteractionMode {
   Click = 0,
   Focus = 1,
   OpenInNewTab = 2,
+  Hover = 3,
 }
 
 type WordInNode = {
@@ -372,6 +373,10 @@ function handleElementInteraction(
         url: href,
       } satisfies Message);
       break;
+    }
+    case ElementInteractionMode.Hover: {
+      element.dispatchEvent(new PointerEvent("pointerover"));
+      element.dispatchEvent(new MouseEvent("mouseover"));
     }
   }
 }
@@ -2044,12 +2049,12 @@ function Root() {
     elementToScroll.scrollTop = elementToScroll.scrollHeight;
   }
 
+  const InteractiveElementsSelector = `:is(a,button,input,label,[role^="menuitem"],[role="button"],[role="treeitem"],[role="radio"]):not(:disabled):not([aria-disabled="true"])`;
+
   function highlightInteractiveElements() {
     if (currentMode() !== Mode.Highlight) {
       state.highlightInteractionMode = ElementInteractionMode.Click;
-      highlightElementsBySelector(
-        `:is(a,button,input,label,[role^="menuitem"],[role="button"],[role="treeitem"],[role="radio"]):not(:disabled):not([aria-disabled="true"])`
-      );
+      highlightElementsBySelector(InteractiveElementsSelector);
     }
   }
 
@@ -2057,6 +2062,13 @@ function Root() {
     if (currentMode() !== Mode.Highlight) {
       state.highlightInteractionMode = ElementInteractionMode.OpenInNewTab;
       highlightElementsBySelector("a");
+    }
+  }
+
+  function highlightInteractiveElementsToHover() {
+    if (currentMode() !== Mode.Highlight) {
+      state.highlightInteractionMode = ElementInteractionMode.Hover;
+      highlightElementsBySelector(InteractiveElementsSelector);
     }
   }
 
@@ -2220,6 +2232,10 @@ function Root() {
       "g f": {
         desc: "Highlight links to open in new tab",
         fn: highlightLinksToOpenInNewTab,
+      },
+      "g h": {
+        desc: "Highlight interactive elements to hover",
+        fn: highlightInteractiveElementsToHover,
       },
       p: { desc: "Toggle passthrough", fn: togglePassthrough },
       "C-p": {
