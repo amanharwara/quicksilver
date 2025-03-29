@@ -2,10 +2,10 @@
 
 component="${1:-"patch"}" # major, minor, patch
 
-regex="\b(major|minor|patch)\b"
-if [[ ! $component =~ $regex ]]; then
-	exit 1
-fi
+# regex="\b(major|minor|patch)\b"
+# if [[ ! $component =~ $regex ]]; then
+# 	exit 1
+# fi
 
 yarn version $component
 
