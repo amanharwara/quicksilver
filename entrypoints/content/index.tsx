@@ -135,13 +135,13 @@ function createElement(
 const LEADER_KEY = " ";
 
 function getKeyRepresentation(event: KeyboardEvent) {
-  const { ctrlKey, shiftKey, altKey, key: eventKey } = event;
+  const { ctrlKey, shiftKey, altKey, metaKey, key: eventKey } = event;
   let key = eventKey.toLowerCase();
   if (key === LEADER_KEY) {
     key = "<leader>";
   }
-  return `${ctrlKey ? "C-" : ""}${shiftKey ? "S-" : ""}${
-    altKey ? "A-" : ""
+  return `${ctrlKey ? "C-" : ""}${shiftKey ? "S-" : ""}${altKey ? "A-" : ""}${
+    metaKey ? "M-" : ""
   }${key}`;
 }
 
@@ -2567,10 +2567,15 @@ function Root() {
       }
     }
 
-    const { key, ctrlKey, shiftKey, altKey, target } = event;
+    const { key, ctrlKey, shiftKey, altKey, metaKey, target } = event;
     info("keydown", event);
 
-    if (key === "Control" || key === "Shift" || key === "Alt") {
+    if (
+      key === "Control" ||
+      key === "Shift" ||
+      key === "Alt" ||
+      key === "Meta"
+    ) {
       return;
     }
 
@@ -2599,6 +2604,7 @@ function Root() {
       !ctrlKey &&
       !shiftKey &&
       !altKey &&
+      !metaKey &&
       mode === Mode.Highlight &&
       key !== "Escape"
     ) {
