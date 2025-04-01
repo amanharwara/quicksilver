@@ -1198,7 +1198,7 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
     const cleanupKeydownListener = context.registerKeydownListener((event) => {
       const key = getKeyRepresentation(event);
       switch (key) {
-        case " ": {
+        case "<leader>": {
           const input = (event.target as HTMLElement).closest("input");
           if (input && input.type !== "range") {
             return false;
