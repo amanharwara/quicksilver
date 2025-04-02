@@ -1,6 +1,5 @@
 import { Accessor, Component, ComponentProps, JSX } from "solid-js";
-import { Tabs } from "wxt/browser";
-import { Message } from "../../shared/Message";
+import { sendMessage } from "../../shared/Message";
 import {
   ArrowBigUpIcon,
   ChevronDownIcon,
@@ -368,10 +367,10 @@ function handleElementInteraction(
         return;
       }
       const href = element.href;
-      browser.runtime.sendMessage({
-        type: "open-new-tab-in-background",
+      sendMessage("openNewTab", {
         url: href,
-      } satisfies Message);
+        background: true,
+      });
       break;
     }
     case ElementInteractionMode.Hover: {
@@ -1584,18 +1583,16 @@ function MediaList() {
 
 function TabList() {
   const [tabs] = createResource(async function getAllTabs() {
-    const response = (await browser.runtime.sendMessage({
-      type: "get-all-tabs",
-    } satisfies Message)) as Message;
+    const response = await sendMessage("getAllTabs", undefined);
     if (!Array.isArray(response)) {
       throw new Error("Did not receive correct response");
     }
-    return response as Tabs.Tab[];
+    return response;
   });
 
   const context = useMainContext();
 
-  const [selectedTab, setSelectedTab] = createSignal<Tabs.Tab>();
+  const [selectedTab, setSelectedTab] = createSignal<Browser.tabs.Tab>();
 
   const tabActions = [
     {
@@ -1603,10 +1600,7 @@ function TabList() {
       fn: function openTab() {
         const tab = selectedTab();
         if (!tab) return;
-        browser.runtime.sendMessage({
-          type: "activate-tab",
-          tabId: tab.id,
-        } satisfies Message);
+        sendMessage("activateTab", tab.id);
       },
     },
     {
@@ -1614,10 +1608,7 @@ function TabList() {
       fn: function closeTab() {
         const tab = selectedTab();
         if (!tab) return;
-        browser.runtime.sendMessage({
-          type: "close-tab",
-          tabId: tab.id,
-        } satisfies Message);
+        sendMessage("closeTab", tab.id);
       },
     },
   ];
@@ -2084,9 +2075,7 @@ function Root() {
   }
 
   function openNewTabToRight() {
-    browser.runtime.sendMessage({
-      type: "open-new-tab-next-to-current",
-    } satisfies Message);
+    sendMessage("openNewTab", { background: false });
   }
 
   function highlightWordsForVisualMode() {
@@ -2246,17 +2235,17 @@ function Root() {
       "w t [": {
         desc: "Go to previous tab",
         fn: function goToPreviousTab() {
-          browser.runtime.sendMessage({
-            type: "go-to-prev-tab",
-          } satisfies Message);
+          sendMessage("goToTab", {
+            relative: "previous",
+          });
         },
       },
       "w t ]": {
         desc: "Go to next tab",
         fn: function goToNextTab() {
-          browser.runtime.sendMessage({
-            type: "go-to-next-tab",
-          } satisfies Message);
+          sendMessage("goToTab", {
+            relative: "next",
+          });
         },
       },
       "w t n": {

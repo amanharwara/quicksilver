@@ -1,109 +1,81 @@
-import { Message } from "../shared/Message";
-import { error } from "../shared/log";
+import { onMessage } from "../shared/Message";
 
-function isNumber(n: number | undefined): n is number {
-  return typeof n === "number";
-}
+onMessage("getAllTabs", async () => {
+  const allTabs = await browser.tabs.query({
+    windowId: browser.windows.WINDOW_ID_CURRENT,
+  });
+  return allTabs;
+});
 
-export default defineBackground(() => {
-  browser.runtime.onMessage.addListener(async (message: Message) => {
-    switch (message.type) {
-      case "go-to-prev-tab": {
-        const [activeTab] = await browser.tabs.query({
-          active: true,
-          lastFocusedWindow: true,
-        });
-        const [prevTab] = await browser.tabs.query({
-          index: activeTab.index - 1,
-          lastFocusedWindow: true,
-        });
-        if (prevTab && isNumber(prevTab.id)) {
-          browser.tabs.update(prevTab.id, { active: true });
+onMessage("openNewTab", async (message) => {
+  const { url, background = false, position = "after" } = message.data ?? {};
+  const [activeTab] = await browser.tabs.query({
+    active: true,
+    lastFocusedWindow: true,
+  });
+  const activeTabIndex = activeTab.index;
+  browser.tabs.create({
+    active: !background,
+    url: url,
+    index: position === "after" ? activeTabIndex + 1 : activeTabIndex - 1,
+    ...(import.meta.env.FIREFOX
+      ? {
+          // @ts-ignore firefox-only property which is not included in chrome types
+          cookieStoreId: activeTab.cookieStoreId,
         }
-        break;
-      }
-      case "go-to-next-tab": {
-        const [activeTab] = await browser.tabs.query({
-          active: true,
-          lastFocusedWindow: true,
-        });
-        const [nextTab] = await browser.tabs.query({
-          index: activeTab.index + 1,
-          lastFocusedWindow: true,
-        });
-        if (nextTab && isNumber(nextTab.id)) {
-          browser.tabs.update(nextTab.id, { active: true });
-        }
-        break;
-      }
-      case "get-all-tabs": {
-        const allTabs = await browser.tabs.query({
-          windowId: browser.windows.WINDOW_ID_CURRENT,
-        });
-        const [activeTab] = await browser.tabs.query({
-          active: true,
-          lastFocusedWindow: true,
-        });
-        if (isNumber(activeTab.id)) {
-          return allTabs;
-        }
-        break;
-      }
-      case "activate-tab": {
-        if (!isNumber(message.tabId)) break;
-        browser.tabs.update(message.tabId, { active: true });
-        break;
-      }
-      case "close-tab": {
-        if (!isNumber(message.tabId)) break;
-        browser.tabs.remove(message.tabId);
-        break;
-      }
-      case "open-new-tab-in-background": {
-        const [activeTab] = await browser.tabs.query({
-          active: true,
-          lastFocusedWindow: true,
-        });
-        const activeTabIndex = activeTab.index;
-        browser.tabs.create({
-          active: false,
-          url: message.url,
-          index: activeTabIndex + 1,
-          ...(import.meta.env.FIREFOX
-            ? {
-                cookieStoreId: activeTab.cookieStoreId,
-              }
-            : {}),
-        });
-        break;
-      }
-      case "open-new-tab-next-to-current": {
-        const [activeTab] = await browser.tabs.query({
-          active: true,
-          lastFocusedWindow: true,
-        });
-        const activeTabIndex = activeTab.index;
-        browser.tabs.create({
-          active: true,
-          index: activeTabIndex + 1,
-          ...(import.meta.env.FIREFOX
-            ? {
-                cookieStoreId: activeTab.cookieStoreId,
-              }
-            : {}),
-        });
-        break;
-      }
-      case "get-active-tab":
-        const [activeTab] = await browser.tabs.query({
-          active: true,
-          lastFocusedWindow: true,
-        });
-        return activeTab;
-        break;
-      default:
-        error("error", "Unknown message type", message);
-        break;
-    }
+      : {}),
   });
 });
+
+async function activateTab(id: number) {
+  await browser.tabs.update(id, { active: true });
+}
+
+function isNumber(x: unknown): x is number {
+  return typeof x === "number";
+}
+
+onMessage("activateTab", async (message) => {
+  const id = message.data;
+  if (!isNumber(id)) {
+    return;
+  }
+  activateTab(id);
+});
+
+onMessage("closeTab", async (message) => {
+  const id = message.data;
+  if (!isNumber(id)) {
+    return;
+  }
+  await browser.tabs.remove(id);
+});
+
+onMessage("goToTab", async (message) => {
+  const which = message.data;
+  const [activeTab] = await browser.tabs.query({
+    active: true,
+    lastFocusedWindow: true,
+  });
+
+  let tabIndex = -1;
+
+  if ("relative" in which) {
+    tabIndex =
+      which.relative === "previous" ? activeTab.index - 1 : activeTab.index + 1;
+  } else {
+    tabIndex = which.index;
+  }
+
+  if (tabIndex > -1) {
+    const [tab] = await browser.tabs.query({
+      index: tabIndex,
+      lastFocusedWindow: true,
+    });
+    if (tab && isNumber(tab.id)) {
+      browser.tabs.update(tab.id, { active: true });
+    }
+  }
+});
+
+export default defineBackground(() => {});

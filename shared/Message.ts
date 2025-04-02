@@ -1,30 +1,19 @@
-import { Tabs } from "wxt/browser";
+import { defineExtensionMessaging } from "@webext-core/messaging";
 
-export type Message =
-  | {
-      type: "get-all-tabs";
-    }
-  | {
-      type: "get-active-tab";
-    }
-  | {
-      type: "activate-tab";
-      tabId: Tabs.Tab["id"];
-    }
-  | {
-      type: "open-new-tab-in-background";
-      url: string;
-    }
-  | {
-      type: "open-new-tab-next-to-current";
-    }
-  | {
-      type: "go-to-prev-tab";
-    }
-  | {
-      type: "go-to-next-tab";
-    }
-  | {
-      type: "close-tab";
-      tabId: Tabs.Tab["id"];
-    };
+type Tab = Browser.tabs.Tab;
+
+interface ProtocolMap {
+  getAllTabs(): Tab[];
+  goToTab(which: { relative: "previous" | "next" } | { index: number }): void;
+  openNewTab(options?: {
+    url?: string;
+    background: boolean;
+    /** Where to insert new tab */
+    position?: "before" | "after";
+  }): void;
+  activateTab(id: Tab["id"]): void;
+  closeTab(id: Tab["id"]): void;
+}
+
+export const { sendMessage, onMessage } =
+  defineExtensionMessaging<ProtocolMap>();
