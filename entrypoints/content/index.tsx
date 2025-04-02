@@ -2186,20 +2186,31 @@ function Root() {
     }
   }
 
-  function searchOrOpenSelectedTextAsLink() {
+  const StartsWithProtocolRegex = /^[a-z]:\/\//;
+  function openSelectedTextAsLink() {
     const selection = getSelection();
     if (!selection) return;
 
-    const selectionText = selection.toString();
     try {
-      const url = new URL(selectionText);
+      const selectionText = selection.toString();
+      let possibleURL = selectionText;
+      if (!StartsWithProtocolRegex.test(possibleURL)) {
+        possibleURL = "https://" + possibleURL;
+      }
+      const url = new URL(possibleURL);
       sendMessage("openNewTab", {
         background: true,
         url: url.toString(),
       });
-    } catch {
-      sendMessage("search", selectionText);
-    }
+    } catch {}
+  }
+
+  function searchSelectedText() {
+    const selection = getSelection();
+    if (!selection) return;
+
+    const selectionText = selection.toString();
+    sendMessage("search", selectionText);
   }
 
   const actionsMap: Record<Mode, Actions> = {
@@ -2370,8 +2381,12 @@ function Root() {
         },
       },
       "g f": {
-        desc: "Search or open selected text as link in new tab",
-        fn: searchOrOpenSelectedTextAsLink,
+        desc: "Open selected text as link in new tab",
+        fn: openSelectedTextAsLink,
+      },
+      "s f": {
+        desc: "Search selected text in new tab",
+        fn: searchSelectedText,
       },
     },
   };
