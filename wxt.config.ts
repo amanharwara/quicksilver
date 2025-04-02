@@ -4,7 +4,12 @@ import { defineConfig } from "wxt";
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   manifest: ({ browser }) => {
-    const permissions: string[] = ["tabs", "clipboardWrite", "storage"];
+    const permissions: string[] = [
+      "tabs",
+      "clipboardWrite",
+      "storage",
+      "search",
+    ];
     if (browser === "firefox") {
       permissions.push("contextualIdentities", "cookies");
     }

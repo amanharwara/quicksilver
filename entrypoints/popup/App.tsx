@@ -6,7 +6,7 @@ import {
 } from "../../shared/storage";
 import { error } from "../../shared/log";
 import { PlusIcon, TrashIcon } from "../../shared/icons";
-import { Message } from "../../shared/Message";
+import { Message } from "../../shared/messaging";
 import { Tabs } from "wxt/browser";
 import { nanoid } from "nanoid";
 

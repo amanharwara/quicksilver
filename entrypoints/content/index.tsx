@@ -1,5 +1,5 @@
 import { Accessor, Component, ComponentProps, JSX } from "solid-js";
-import { sendMessage } from "../../shared/Message";
+import { sendMessage } from "../../shared/messaging";
 import {
   ArrowBigUpIcon,
   ChevronDownIcon,
@@ -2186,6 +2186,22 @@ function Root() {
     }
   }
 
+  function searchOrOpenSelectedTextAsLink() {
+    const selection = getSelection();
+    if (!selection) return;
+
+    const selectionText = selection.toString();
+    try {
+      const url = new URL(selectionText);
+      sendMessage("openNewTab", {
+        background: true,
+        url: url.toString(),
+      });
+    } catch {
+      sendMessage("search", selectionText);
+    }
+  }
+
   const actionsMap: Record<Mode, Actions> = {
     [Mode.Normal]: {
       "S-?": {
@@ -2352,6 +2368,10 @@ function Root() {
           setCurrentMode(Mode.VisualCaret);
           collapseSelectionToEnd();
         },
+      },
+      "g f": {
+        desc: "Search or open selected text as link in new tab",
+        fn: searchOrOpenSelectedTextAsLink,
       },
     },
   };
@@ -2666,18 +2686,31 @@ function Root() {
   };
 
   const selectionChangeListener = () => {
-    if (!collapsedCaret || isExtensionDisabled()) return;
+    if (isExtensionDisabled()) return;
 
     const selection = getSelection();
     if (!selection || !selection.isCollapsed) {
-      collapsedCaret.style.display = "none";
+      if (collapsedCaret) {
+        collapsedCaret.style.display = "none";
+      }
+
+      if (
+        selection &&
+        !selection.isCollapsed &&
+        currentMode() !== Mode.VisualRange
+      ) {
+        setCurrentMode(Mode.VisualRange);
+      }
+
       return;
     }
 
-    const rect = selection.getRangeAt(0).getBoundingClientRect();
-    collapsedCaret.style.display = "";
-    collapsedCaret.style.height = `${rect.height}px`;
-    collapsedCaret.style.translate = `${rect.x}px ${rect.y}px`;
+    if (collapsedCaret) {
+      const rect = selection.getRangeAt(0).getBoundingClientRect();
+      collapsedCaret.style.display = "";
+      collapsedCaret.style.height = `${rect.height}px`;
+      collapsedCaret.style.translate = `${rect.x}px ${rect.y}px`;
+    }
   };
 
   const controller = new AbortController();

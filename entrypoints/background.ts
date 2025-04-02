@@ -1,4 +1,4 @@
-import { onMessage } from "../shared/Message";
+import { onMessage, ProtocolMap } from "../shared/messaging";
 
 onMessage("getAllTabs", async () => {
   const allTabs = await browser.tabs.query({
@@ -7,14 +7,14 @@ onMessage("getAllTabs", async () => {
   return allTabs;
 });
 
-onMessage("openNewTab", async (message) => {
-  const { url, background = false, position = "after" } = message.data ?? {};
+async function openNewTab(options: Parameters<ProtocolMap["openNewTab"]>[0]) {
+  const { url, background, position = "after" } = options;
   const [activeTab] = await browser.tabs.query({
     active: true,
     lastFocusedWindow: true,
   });
   const activeTabIndex = activeTab.index;
-  browser.tabs.create({
+  return browser.tabs.create({
     active: !background,
     url: url,
     index: position === "after" ? activeTabIndex + 1 : activeTabIndex - 1,
@@ -25,6 +25,10 @@ onMessage("openNewTab", async (message) => {
         }
       : {}),
   });
+}
+
+onMessage("openNewTab", async (message) => {
+  await openNewTab(message.data);
 });
 
 async function activateTab(id: number) {
@@ -76,6 +80,21 @@ onMessage("goToTab", async (message) => {
       browser.tabs.update(tab.id, { active: true });
     }
   }
+});
+
+onMessage("search", async (message) => {
+  const text = message.data;
+  const newTabInBackground = await openNewTab({
+    background: true,
+  });
+  await browser.search.query({
+    text,
+    ...(isNumber(newTabInBackground.id)
+      ? { tabId: newTabInBackground.id }
+      : {
+          disposition: "NEW_TAB",
+        }),
+  });
 });
 
 export default defineBackground(() => {});
