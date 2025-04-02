@@ -1,5 +1,13 @@
 import { onMessage, ProtocolMap } from "../shared/messaging";
 
+onMessage("getActiveTab", async () => {
+  const [activeTab] = await browser.tabs.query({
+    active: true,
+    lastFocusedWindow: true,
+  });
+  return activeTab;
+});
+
 onMessage("getAllTabs", async () => {
   const allTabs = await browser.tabs.query({
     windowId: browser.windows.WINDOW_ID_CURRENT,

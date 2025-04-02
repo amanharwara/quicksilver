@@ -6,8 +6,8 @@ import {
 } from "../../shared/storage";
 import { error } from "../../shared/log";
 import { PlusIcon, TrashIcon } from "../../shared/icons";
-import { Message } from "../../shared/messaging";
-import { Tabs } from "wxt/browser";
+import { sendMessage } from "../../shared/messaging";
+import { Browser } from "wxt/browser";
 import { nanoid } from "nanoid";
 
 function SwitchToggle(
@@ -102,10 +102,8 @@ function App() {
     });
   });
 
-  const [currentTab] = createResource<Tabs.Tab>(async () => {
-    return browser.runtime.sendMessage({
-      type: "get-active-tab",
-    } satisfies Message);
+  const [currentTab] = createResource<Browser.tabs.Tab>(async () => {
+    return sendMessage("getActiveTab", undefined);
   });
   const currentURL = createMemo(() => {
     const tab = currentTab();

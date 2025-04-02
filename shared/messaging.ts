@@ -3,6 +3,7 @@ import { defineExtensionMessaging } from "@webext-core/messaging";
 type Tab = Browser.tabs.Tab;
 
 export interface ProtocolMap {
+  getActiveTab(): Tab;
   getAllTabs(): Tab[];
   goToTab(which: { relative: "previous" | "next" } | { index: number }): void;
   openNewTab(options: {
