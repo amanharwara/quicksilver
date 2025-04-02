@@ -1,4 +1,4 @@
-import { ComponentProps } from "solid-js";
+import { ComponentProps, createReaction } from "solid-js";
 import {
   disabledGlobally,
   storedBlocklist,
@@ -118,15 +118,22 @@ function App() {
     createSignal<Blocklist[number]["type"]>("exact");
   const [toAddValue, setToAddValue] =
     createSignal<Blocklist[number]["value"]>("");
+  const trackCurrentTab = createReaction(() =>
+    setToAddValue(currentTab()?.url ?? "")
+  );
+  trackCurrentTab(() => currentTab());
+
+  const [regexpMatchesURL, setRegexpMatchesURL] = createSignal(false);
   createEffect(() => {
-    const tab = currentTab();
-    if (tab?.url && !toAddValue()) {
-      setToAddValue(tab.url);
+    if (toAddType() === "regexp") {
+      const url = currentURL()?.toString();
+      if (url) {
+        const regexp = new RegExp(toAddValue());
+        setRegexpMatchesURL(regexp.test(url));
+      } else {
+        setRegexpMatchesURL(false);
+      }
     }
-  });
-  const regexp = createMemo(() => {
-    if (toAddType() !== "regexp") return null;
-    return new RegExp(toAddValue());
   });
 
   function addToBlocklist() {
@@ -311,16 +318,9 @@ function App() {
                 </Match>
               </Switch>
             </div>
-            <Show
-              when={
-                toAddType() === "regexp" &&
-                regexp() !== null &&
-                currentURL() !== null
-              }
-            >
+            <Show when={toAddType() === "regexp"}>
               <div class="text-xs text-zinc-300">
-                Matches current URL:{" "}
-                {JSON.stringify(regexp()!.test(currentURL()!.toString()))}
+                Matches current URL: {JSON.stringify(regexpMatchesURL())}
               </div>
             </Show>
             <div class="flex items-center gap-2">
