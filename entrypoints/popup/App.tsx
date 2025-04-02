@@ -5,7 +5,7 @@ import {
   Blocklist,
 } from "../../shared/storage";
 import { error } from "../../shared/log";
-import { PlusIcon, TrashIcon } from "../../shared/icons";
+import { CheckIcon, EditIcon, PlusIcon, TrashIcon } from "../../shared/icons";
 import { sendMessage } from "../../shared/messaging";
 import { Browser } from "wxt/browser";
 import { nanoid } from "nanoid";
@@ -111,6 +111,9 @@ function App() {
     return new URL(tab.url);
   });
 
+  const [ruleToEdit, setRuleToEdit] = createSignal<number>(-1);
+  const isEditingRule = () => ruleToEdit() > -1;
+
   const [toAddType, setToAddType] =
     createSignal<Blocklist[number]["type"]>("exact");
   const [toAddValue, setToAddValue] =
@@ -120,6 +123,10 @@ function App() {
     if (tab?.url && !toAddValue()) {
       setToAddValue(tab.url);
     }
+  });
+  const regexp = createMemo(() => {
+    if (toAddType() !== "regexp") return null;
+    return new RegExp(toAddValue());
   });
 
   function addToBlocklist() {
@@ -146,6 +153,16 @@ function App() {
     // reset
     setToAddType("exact");
     setToAddValue("");
+  }
+
+  function saveEditedRule() {
+    const currentBlocklist = blocklist();
+    const rule = currentBlocklist[ruleToEdit()];
+    if (!rule) return;
+    rule.type = toAddType();
+    rule.value = toAddValue();
+    storedBlocklist.setValue(currentBlocklist);
+    setRuleToEdit(-1);
   }
 
   function toggleRule(index: number) {
@@ -205,6 +222,17 @@ function App() {
                   <Button
                     iconButton
                     onClick={() => {
+                      setRuleToEdit(index());
+                      setToAddType(rule.type);
+                      setToAddValue(rule.value);
+                    }}
+                  >
+                    <EditIcon class="w-4 h-4" />
+                    <div class="sr-only">Edit</div>
+                  </Button>
+                  <Button
+                    iconButton
+                    onClick={() => {
                       deleteRule(rule.id);
                     }}
                   >
@@ -221,10 +249,19 @@ function App() {
             class="flex flex-col gap-2"
             onSubmit={(event) => {
               event.preventDefault();
-              addToBlocklist();
+              if (isEditingRule()) {
+                saveEditedRule();
+              } else {
+                addToBlocklist();
+              }
             }}
           >
-            <div class="text-xs font-semibold">Add site</div>
+            <div class="text-xs font-semibold">
+              <Show when={isEditingRule()} fallback={"Add"}>
+                Edit
+              </Show>{" "}
+              rule
+            </div>
             <select
               class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1 *:bg-zinc-800 *:text-white"
               value={toAddType()}
@@ -274,10 +311,43 @@ function App() {
                 </Match>
               </Switch>
             </div>
-            <Button type="submit" class="flex items-center gap-1 self-start">
-              <PlusIcon class="w-4 h-4" />
-              <span>Add</span>
-            </Button>
+            <Show
+              when={
+                toAddType() === "regexp" &&
+                regexp() !== null &&
+                currentURL() !== null
+              }
+            >
+              <div class="text-xs text-zinc-300">
+                Matches current URL:{" "}
+                {JSON.stringify(regexp()!.test(currentURL()!.toString()))}
+              </div>
+            </Show>
+            <div class="flex items-center gap-2">
+              <Button type="submit" class="flex items-center gap-1 self-start">
+                <Show
+                  when={isEditingRule()}
+                  fallback={
+                    <>
+                      <PlusIcon class="w-4 h-4" />
+                      <span>Add</span>
+                    </>
+                  }
+                >
+                  <CheckIcon class="w-4 h-4" />
+                  <span>Save</span>
+                </Show>
+              </Button>
+              <Show when={isEditingRule()}>
+                <Button
+                  class="flex items-center gap-1 self-start"
+                  onClick={() => setRuleToEdit(-1)}
+                >
+                  <PlusIcon class="w-4 h-4 rotate-[135deg]" />
+                  <span>Cancel</span>
+                </Button>
+              </Show>
+            </div>
           </form>
         </Show>
       </div>
