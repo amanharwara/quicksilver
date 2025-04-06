@@ -1092,6 +1092,21 @@ function decreaseMediaPlaybackRate(media: HTMLMediaElement, by = 0.25) {
   media.playbackRate = Math.max(currentRate - by, 0);
 }
 
+function msFromSeconds(seconds: number) {
+  return seconds * 1000;
+}
+
+// adapted from: https://stackoverflow.com/a/19700358
+function msToTime(duration: number) {
+  let seconds = Math.floor((duration / 1000) % 60),
+    minutes = Math.floor((duration / (1000 * 60)) % 60),
+    hours = Math.floor((duration / (1000 * 60 * 60)) % 24);
+
+  return `${hours < 10 ? "0" + hours : hours}:${
+    minutes < 10 ? "0" + minutes : minutes
+  }:${seconds < 10 ? "0" + seconds : seconds}`;
+}
+
 function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
   const [isPlaying, setIsPlaying] = createSignal(!props.media.paused);
   const [currentTime, setCurrentTime] = createSignal(props.media.currentTime);
@@ -1285,22 +1300,12 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
     });
   });
 
-  const date = new Date();
-
   const formattedCurrentTime = createMemo(() => {
-    date.setHours(0, 0, currentTime());
-    return date.toLocaleTimeString("en-US", {
-      minute: "2-digit",
-      second: "2-digit",
-    });
+    return msToTime(msFromSeconds(currentTime()));
   });
 
   const formattedDurationTime = createMemo(() => {
-    date.setHours(0, 0, duration());
-    return date.toLocaleTimeString("en-US", {
-      minute: "2-digit",
-      second: "2-digit",
-    });
+    return msToTime(msFromSeconds(duration()));
   });
 
   function toggleMediaPlay() {
