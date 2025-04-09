@@ -2084,6 +2084,12 @@ function Root() {
   }
 
   function highlightWordsForVisualMode() {
+    const selection = getSelection();
+    if (selection && !selection.isCollapsed) {
+      setCurrentMode(Mode.VisualRange);
+      return;
+    }
+
     cleanupVisualModeElements();
 
     const walk = document.createTreeWalker(
