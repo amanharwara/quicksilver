@@ -2706,31 +2706,18 @@ function Root() {
   };
 
   const selectionChangeListener = () => {
-    if (isExtensionDisabled()) return;
+    if (!collapsedCaret || isExtensionDisabled()) return;
 
     const selection = getSelection();
     if (!selection || !selection.isCollapsed) {
-      if (collapsedCaret) {
-        collapsedCaret.style.display = "none";
-      }
-
-      if (
-        selection &&
-        !selection.isCollapsed &&
-        currentMode() !== Mode.VisualRange
-      ) {
-        setCurrentMode(Mode.VisualRange);
-      }
-
+      collapsedCaret.style.display = "none";
       return;
     }
 
-    if (collapsedCaret) {
-      const rect = selection.getRangeAt(0).getBoundingClientRect();
-      collapsedCaret.style.display = "";
-      collapsedCaret.style.height = `${rect.height}px`;
-      collapsedCaret.style.translate = `${rect.x}px ${rect.y}px`;
-    }
+    const rect = selection.getRangeAt(0).getBoundingClientRect();
+    collapsedCaret.style.display = "";
+    collapsedCaret.style.height = `${rect.height}px`;
+    collapsedCaret.style.translate = `${rect.x}px ${rect.y}px`;
   };
 
   const controller = new AbortController();
