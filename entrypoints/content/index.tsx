@@ -917,6 +917,9 @@ function SearchLinksAndButtons() {
                 style={{
                   "font-weight": "bold",
                 }}
+                title={
+                  item.text.trim().length > 0 ? item.text.trim() : "No title"
+                }
               >
                 {item.text.trim().length > 0 ? item.text.trim() : "No title"}
               </div>
@@ -925,6 +928,7 @@ function SearchLinksAndButtons() {
                 style={{
                   "font-size": "smaller",
                 }}
+                title={item.href ?? "<button>"}
               >
                 <Show when={item.href} fallback={"<button>"}>
                   {item.href}
@@ -940,7 +944,11 @@ function SearchLinksAndButtons() {
           <ListSearch
             items={selectedItemActions()}
             itemContent={({ desc }) => (
-              <span class="qs-text-ellipsis" style={{ "font-weight": "bold" }}>
+              <span
+                class="qs-text-ellipsis"
+                style={{ "font-weight": "bold" }}
+                title={desc}
+              >
                 {desc}
               </span>
             )}
@@ -1565,7 +1573,9 @@ function MediaList() {
           <ListSearch
             items={mediaElements}
             itemContent={(item) => (
-              <span class="qs-text-ellipsis">{item.src}</span>
+              <span class="qs-text-ellipsis" title={item.src}>
+                {item.src}
+              </span>
             )}
             filter={(media, lq) => media.src.toLowerCase().includes(lq)}
             handleSelect={function selectMedia(media) {
@@ -1629,7 +1639,11 @@ function TabList() {
           items={tabs()!}
           itemContent={(tab) => (
             <>
-              <div class="qs-text-ellipsis" style={{ "font-weight": "bold" }}>
+              <div
+                class="qs-text-ellipsis"
+                style={{ "font-weight": "bold" }}
+                title={tab.title}
+              >
                 {tab.title}
               </div>
               <div
@@ -1638,6 +1652,7 @@ function TabList() {
                   "font-size": "smaller",
                   "grid-row": "2",
                 }}
+                title={tab.url}
               >
                 {tab.url}
               </div>
@@ -1659,7 +1674,11 @@ function TabList() {
           <ListSearch
             items={tabActions}
             itemContent={(item) => (
-              <span class="qs-text-ellipsis" style={{ "font-weight": "bold" }}>
+              <span
+                class="qs-text-ellipsis"
+                style={{ "font-weight": "bold" }}
+                title={item.name}
+              >
                 {item.name}
               </span>
             )}
@@ -1755,7 +1774,9 @@ function CommandPalette(props: {
               gap: rem(1),
             }}
           >
-            <div class="qs-text-ellipsis">{item.desc}</div>
+            <div class="qs-text-ellipsis" title={item.desc}>
+              {item.desc}
+            </div>
             <Show when={item.key}>
               <KeyCombo combo={item.key!} />
             </Show>
