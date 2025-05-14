@@ -1912,8 +1912,8 @@ function Root() {
       if (scrollParent) {
         const scrollParentRect = scrollParent.getBoundingClientRect();
         const isElementVisibleInScroll =
-          elementTop > scrollParentRect.top &&
-          elementRect.bottom < scrollParentRect.bottom;
+          elementTop >= scrollParentRect.top &&
+          elementRect.bottom <= scrollParentRect.bottom;
         if (!isElementVisibleInScroll) {
           continue;
         }
