@@ -2564,8 +2564,21 @@ function Root() {
     };
   }
 
+  const InputTypesThatAreNotTextboxes = [
+    "button",
+    "checkbox",
+    "color",
+    "file",
+    "radio",
+    "submit",
+  ];
   function isInputElement(el: Element | EventTarget | null) {
     if (!(el instanceof Element)) return false;
+    if (
+      el instanceof HTMLInputElement &&
+      InputTypesThatAreNotTextboxes.includes(el.type)
+    )
+      return false;
     return (
       (el instanceof HTMLInputElement ||
         el instanceof HTMLTextAreaElement ||
