@@ -1883,26 +1883,42 @@ function Root() {
     if (!elements) {
       return;
     }
-    const elementRects = Array.from(
-      elements.values().map((linkEl) => linkEl.getBoundingClientRect())
-    );
     const highlightIDs = twoCharIDGenerator();
     const windowHeight = window.innerHeight;
     let createdHighlights = 0;
+    const highlightElements: HTMLElement[] = [];
     for (let index = 0; index < elements.length; index++) {
       const element = elements[index];
-      const elementRect = elementRects[index];
+      const elementRect = element.getBoundingClientRect();
+      const elementTop = elementRect.top;
+
       const isInViewport =
-        elementRect.top >= 0 &&
-        elementRect.top < windowHeight &&
+        elementTop >= 0 &&
+        elementTop < windowHeight &&
         elementRect.width > 0 &&
         elementRect.height > 0;
+      if (!isInViewport) {
+        continue;
+      }
+
       const isVisible = element.checkVisibility({
         checkOpacity,
       });
-      if (!isInViewport || !isVisible) {
+      if (!isVisible) {
         continue;
       }
+
+      const scrollParent = findOverflowingParent(element);
+      if (scrollParent) {
+        const scrollParentRect = scrollParent.getBoundingClientRect();
+        const isElementVisibleInScroll =
+          elementTop > scrollParentRect.top &&
+          elementRect.bottom < scrollParentRect.bottom;
+        if (!isElementVisibleInScroll) {
+          continue;
+        }
+      }
+
       const id = highlightIDs.next().value;
       const highlight = createElement("div", {
         styles: {
@@ -1911,13 +1927,19 @@ function Root() {
         },
         text: id as string,
       });
-      highlightsContainer?.append(highlight);
+      highlightElements.push(highlight);
+
       idToHighlightElementMap.set(id as string, highlight);
       elementToHighlightMap.set(highlight, {
         type: "element",
         element,
       });
+
       createdHighlights++;
+    }
+    for (let i = 0; i < highlightElements.length; i++) {
+      const element = highlightElements[i];
+      highlightsContainer?.append(element);
     }
     if (createdHighlights === 0) {
       return;
