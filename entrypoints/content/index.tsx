@@ -1957,7 +1957,8 @@ function Root() {
     if (highlight.type === "element") {
       handleElementInteraction(
         highlight.element,
-        highlight.element instanceof HTMLInputElement
+        highlight.element instanceof HTMLInputElement ||
+          highlight.element instanceof HTMLSelectElement
           ? ElementInteractionMode.Focus
           : state.highlightInteractionMode
       );
@@ -2088,7 +2089,7 @@ function Root() {
     elementToScroll.scrollTop = elementToScroll.scrollHeight;
   }
 
-  const InteractiveElementsSelector = `:is(a,button,input,label,[role^="menuitem"],[role="button"],[role="treeitem"],[role="radio"],[role="tab"]):not(:disabled):not([aria-disabled="true"],details)`;
+  const InteractiveElementsSelector = `:is(a,button,input,label,[role^="menuitem"],[role="button"],[role="treeitem"],[role="radio"],[role="tab"],select):not(:disabled):not([aria-disabled="true"],details)`;
 
   function highlightInteractiveElements() {
     if (currentMode() !== Mode.Highlight) {
