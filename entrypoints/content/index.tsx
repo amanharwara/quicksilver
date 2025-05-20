@@ -1596,6 +1596,88 @@ function MediaList() {
   );
 }
 
+function ImageList() {
+  const imageElements: HTMLImageElement[] = [];
+  for (const image of document.querySelectorAll("img")) {
+    if (!(image instanceof HTMLImageElement)) continue;
+    imageElements.push(image);
+  }
+
+  const context = useMainContext();
+
+  const [selectedImage, setSelectedImage] =
+    createSignal<HTMLImageElement | null>(null);
+
+  const imageActions = [
+    {
+      name: "Open in new tab",
+      fn: function openTab() {
+        const image = selectedImage();
+        if (!image) return;
+        sendMessage("openNewTab", {
+          url: image.src,
+          background: false,
+          position: "after",
+        });
+      },
+    },
+    {
+      name: "Copy link",
+      fn: function openTab() {
+        const image = selectedImage();
+        if (!image) return;
+        navigator.clipboard.writeText(image.src);
+      },
+    },
+  ];
+
+  return (
+    <>
+      <Show when={!selectedImage()}>
+        <Popup
+          style={{
+            visibility: !!selectedImage() ? "hidden" : undefined,
+          }}
+        >
+          <ListSearch
+            items={imageElements}
+            itemContent={(item) => (
+              <span class="qs-text-ellipsis" title={item.src}>
+                {item.src}
+              </span>
+            )}
+            filter={(media, lq) => media.src.toLowerCase().includes(lq)}
+            handleSelect={function selectImage(media) {
+              setSelectedImage(media);
+            }}
+          />
+        </Popup>
+      </Show>
+      <Show when={selectedImage()}>
+        <Popup>
+          <ListSearch
+            items={imageActions}
+            itemContent={(item) => (
+              <span
+                class="qs-text-ellipsis"
+                style={{ "font-weight": "bold" }}
+                title={item.name}
+              >
+                {item.name}
+              </span>
+            )}
+            filter={({ name }, lq) => name.toLowerCase().includes(lq)}
+            handleSelect={(action) => {
+              context.resetState(true);
+              action.fn();
+            }}
+          />
+        </Popup>
+      </Show>
+    </>
+  );
+}
+
 function TabList() {
   const [tabs] = createResource(async function getAllTabs() {
     const response = await sendMessage("getAllTabs", undefined);
@@ -1824,6 +1906,7 @@ function Root() {
     createSignal(false);
   const [shouldShowMediaList, toggleMediaList] = createSignal(false);
   const [shouldShowTabList, toggleTabList] = createSignal(false);
+  const [shouldShowImageList, toggleImageList] = createSignal(false);
   const [shouldShowDebugList, toggleDebugList] = createSignal(false);
   const [shouldShowCommandPalette, toggleCommandPalette] = createSignal(false);
   const [shouldShowConfig, toggleConfig] = createSignal(false);
@@ -1842,6 +1925,7 @@ function Root() {
     setShowListAndButtonList(false);
     toggleMediaList(false);
     toggleTabList(false);
+    toggleImageList(false);
     toggleCommandPalette(false);
     toggleDebugList(false);
     toggleConfig(false);
@@ -2295,6 +2379,10 @@ function Root() {
       "l t": {
         desc: "List all tabs",
         fn: () => toggleTabList((show) => !show),
+      },
+      "l i": {
+        desc: "List all images",
+        fn: () => toggleImageList((show) => !show),
       },
       f: {
         desc: "Highlight links, buttons and inputs",
@@ -2901,6 +2989,9 @@ function Root() {
       </Show>
       <Show when={shouldShowDebugList()}>
         <DebugList />
+      </Show>
+      <Show when={shouldShowImageList()}>
+        <ImageList />
       </Show>
       <Show when={isPassthrough()}>
         <div
