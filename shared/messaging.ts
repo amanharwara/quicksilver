@@ -12,6 +12,7 @@ export interface ProtocolMap {
     position?: "before" | "after";
   }): void;
   activateTab(id: Tab["id"]): void;
+  duplicateTab(id: Tab["id"]): void;
   closeTab(id: Tab["id"]): void;
   search(text: string): void;
 }

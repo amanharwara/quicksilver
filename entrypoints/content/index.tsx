@@ -1708,6 +1708,14 @@ function TabList() {
         sendMessage("closeTab", tab.id);
       },
     },
+    {
+      name: "Duplicate tab",
+      fn: function closeTab() {
+        const tab = selectedTab();
+        if (!tab) return;
+        sendMessage("duplicateTab", tab.id);
+      },
+    },
   ];
 
   return (

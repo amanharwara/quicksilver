@@ -55,6 +55,14 @@ onMessage("activateTab", async (message) => {
   activateTab(id);
 });
 
+onMessage("duplicateTab", async (message) => {
+  const id = message.data;
+  if (!isNumber(id)) {
+    return;
+  }
+  await browser.tabs.duplicate(id);
+});
+
 onMessage("closeTab", async (message) => {
   const id = message.data;
   if (!isNumber(id)) {
