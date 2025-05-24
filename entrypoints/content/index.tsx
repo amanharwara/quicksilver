@@ -2024,12 +2024,9 @@ function Root() {
         let scrollParentBottom = scrollParentRect.bottom;
         if (scrollParentTop < 0 && Math.abs(scrollParentTop) === scrollOffset) {
           scrollParentTop += scrollOffset;
-        }
-        if (
-          scrollParentBottom < 0 &&
-          scrollOffset + scrollParentBottom === scrollParentRect.height
-        ) {
-          scrollParentBottom += scrollOffset;
+          if (scrollOffset + scrollParentBottom === scrollParentRect.height) {
+            scrollParentBottom += scrollOffset;
+          }
         }
         const isElementVisibleInScroll =
           elementTop >= scrollParentTop &&
