@@ -8,11 +8,19 @@ onMessage("getActiveTab", async () => {
   return activeTab;
 });
 
-onMessage("getAllTabs", async () => {
+onMessage("getAllTabs", async (message) => {
+  const options = message.data as Parameters<ProtocolMap["getAllTabs"]>[0];
   const allTabs = await browser.tabs.query({
     windowId: browser.windows.WINDOW_ID_CURRENT,
+    ...options,
   });
   return allTabs.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0));
+});
+
+onMessage("getAllContainers", async () => {
+  // @ts-expect-error firefox-only property not available with normal types
+  const containers = await browser.contextualIdentities.query({});
+  return containers;
 });
 
 async function openNewTab(options: Parameters<ProtocolMap["openNewTab"]>[0]) {
@@ -29,7 +37,7 @@ async function openNewTab(options: Parameters<ProtocolMap["openNewTab"]>[0]) {
     ...(import.meta.env.FIREFOX
       ? {
           // @ts-ignore firefox-only property which is not included in chrome types
-          cookieStoreId: activeTab.cookieStoreId,
+          cookieStoreId: options.cookieStoreId || activeTab.cookieStoreId,
         }
       : {}),
   });

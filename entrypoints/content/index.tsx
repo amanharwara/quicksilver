@@ -1,5 +1,5 @@
 import { Accessor, Component, ComponentProps, JSX } from "solid-js";
-import { sendMessage } from "../../shared/messaging";
+import { Container, sendMessage } from "../../shared/messaging";
 import {
   ArrowBigUpIcon,
   ChevronDownIcon,
@@ -1694,9 +1694,13 @@ function ImageList() {
   );
 }
 
-function TabList() {
+function TabList(props: { cookieStoreId?: string }) {
   const [tabs] = createResource(async function getAllTabs() {
-    const response = await sendMessage("getAllTabs", undefined);
+    const cookieStoreId = props.cookieStoreId;
+    const response = await sendMessage(
+      "getAllTabs",
+      cookieStoreId ? { cookieStoreId } : undefined
+    );
     if (!Array.isArray(response)) {
       throw new Error("Did not receive correct response");
     }
@@ -1795,6 +1799,107 @@ function TabList() {
             }}
           />
         </Popup>
+      </Show>
+    </Show>
+  );
+}
+
+function ContainerList() {
+  const [containers] = createResource(async function getAllTabs() {
+    const response = await sendMessage("getAllContainers", undefined);
+    if (!Array.isArray(response)) {
+      throw new Error("Did not receive correct response");
+    }
+    return response;
+  });
+
+  const [selectedContainer, setSelectedContainer] = createSignal<Container>();
+  const [shouldShowTabList, toggleTabList] = createSignal(false);
+
+  const containerActions = [
+    {
+      name: "New tab in container",
+      fn: function openNewTabInContainer() {
+        const container = selectedContainer();
+        if (!container) return;
+        sendMessage("openNewTab", {
+          background: false,
+          cookieStoreId: container.cookieStoreId,
+        });
+      },
+    },
+    {
+      name: "List open tabs",
+      fn: function listOpenTabsForContainer() {
+        const container = selectedContainer();
+        if (!container) return;
+        toggleTabList(true);
+      },
+    },
+  ];
+
+  return (
+    <Show when={containers()}>
+      <Popup
+        style={{
+          visibility: !!selectedContainer() ? "hidden" : undefined,
+        }}
+      >
+        <ListSearch
+          items={containers()!}
+          itemContent={(container) => (
+            <div
+              style={{
+                display: "flex",
+                "align-items": "center",
+                gap: "1rem",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                role="presentation"
+                style={{
+                  width: "1rem",
+                  height: "1rem",
+                  "border-radius": "100%",
+                  "background-color": container.colorCode || "#fff",
+                }}
+              />
+              <span class="qs-text-ellipsis" title={container.name}>
+                {container.name}
+              </span>
+            </div>
+          )}
+          filter={(item, lowercaseQuery) =>
+            Boolean(item.name.toLowerCase().includes(lowercaseQuery))
+          }
+          handleSelect={function selectContainer(item) {
+            setSelectedContainer(item);
+          }}
+        />
+      </Popup>
+      <Show when={selectedContainer() && !shouldShowTabList()}>
+        <Popup>
+          <ListSearch
+            items={containerActions}
+            itemContent={(item) => (
+              <span
+                class="qs-text-ellipsis"
+                style={{ "font-weight": "bold" }}
+                title={item.name}
+              >
+                {item.name}
+              </span>
+            )}
+            filter={({ name }, lq) => name.toLowerCase().includes(lq)}
+            handleSelect={(action) => {
+              action.fn();
+            }}
+          />
+        </Popup>
+      </Show>
+      <Show when={selectedContainer() && shouldShowTabList()}>
+        <TabList cookieStoreId={selectedContainer()!.cookieStoreId} />
       </Show>
     </Show>
   );
@@ -1934,6 +2039,7 @@ function Root() {
   const [shouldShowDebugList, toggleDebugList] = createSignal(false);
   const [shouldShowCommandPalette, toggleCommandPalette] = createSignal(false);
   const [shouldShowConfig, toggleConfig] = createSignal(false);
+  const [shouldShowContainerList, toggleContainerList] = createSignal(false);
 
   const [shouldShowDebugInfo, setShouldShowDebugInfo] = createSignal(false);
   createEffect(() => {
@@ -1953,6 +2059,7 @@ function Root() {
     toggleCommandPalette(false);
     toggleDebugList(false);
     toggleConfig(false);
+    toggleContainerList(false);
   }
 
   const idToHighlightElementMap = new Map<string, HTMLElement>();
@@ -2635,6 +2742,15 @@ function Root() {
     };
   }
 
+  if (import.meta.env.BROWSER === "firefox") {
+    // Firefox-only features
+
+    actionsMap[Mode.Normal]["w c"] = {
+      desc: "List containers",
+      fn: () => toggleContainerList(true),
+    };
+  }
+
   const actionKeyCombinations: Record<Mode, string[]> = {
     [Mode.Normal]: Object.keys(actionsMap[Mode.Normal]),
     [Mode.Highlight]: Object.keys(actionsMap[Mode.Highlight]),
@@ -3043,6 +3159,9 @@ function Root() {
           getCurrentElement={getCurrentElement}
           showDebugList={() => toggleDebugList(true)}
         />
+      </Show>
+      <Show when={shouldShowContainerList()}>
+        <ContainerList />
       </Show>
       <Show when={currentMode() === Mode.VisualCaret}>
         <div
