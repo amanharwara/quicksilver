@@ -2020,9 +2020,20 @@ function Root() {
       if (scrollParent) {
         const scrollParentRect = scrollParent.getBoundingClientRect();
         const scrollOffset = scrollParent.scrollTop;
+        let scrollParentTop = scrollParentRect.top;
+        let scrollParentBottom = scrollParentRect.bottom;
+        if (scrollParentTop < 0 && Math.abs(scrollParentTop) === scrollOffset) {
+          scrollParentTop += scrollOffset;
+        }
+        if (
+          scrollParentBottom < 0 &&
+          scrollOffset + scrollParentBottom === scrollParentRect.height
+        ) {
+          scrollParentBottom += scrollOffset;
+        }
         const isElementVisibleInScroll =
-          elementTop >= scrollOffset + scrollParentRect.top &&
-          elementRect.bottom <= scrollOffset + scrollParentRect.bottom;
+          elementTop >= scrollParentTop &&
+          elementRect.bottom <= scrollParentBottom;
         if (!isElementVisibleInScroll) {
           continue;
         }
