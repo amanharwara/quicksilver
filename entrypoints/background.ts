@@ -12,7 +12,7 @@ onMessage("getAllTabs", async () => {
   const allTabs = await browser.tabs.query({
     windowId: browser.windows.WINDOW_ID_CURRENT,
   });
-  return allTabs;
+  return allTabs.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0));
 });
 
 async function openNewTab(options: Parameters<ProtocolMap["openNewTab"]>[0]) {
