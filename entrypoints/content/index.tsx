@@ -2003,9 +2003,10 @@ function Root() {
       const scrollParent = findOverflowingParent(element);
       if (scrollParent) {
         const scrollParentRect = scrollParent.getBoundingClientRect();
+        const scrollOffset = scrollParent.scrollTop;
         const isElementVisibleInScroll =
-          elementTop >= scrollParentRect.top &&
-          elementRect.bottom <= scrollParentRect.bottom;
+          elementTop >= scrollOffset + scrollParentRect.top &&
+          elementRect.bottom <= scrollOffset + scrollParentRect.bottom;
         if (!isElementVisibleInScroll) {
           continue;
         }
