@@ -1642,9 +1642,25 @@ function ImageList() {
           <ListSearch
             items={imageElements}
             itemContent={(item) => (
-              <span class="qs-text-ellipsis" title={item.src}>
-                {item.src}
-              </span>
+              <div
+                style={{
+                  display: "flex",
+                  "align-items": "center",
+                  gap: "1rem",
+                  overflow: "hidden",
+                }}
+              >
+                <img
+                  src={item.src}
+                  style={{
+                    width: "1.75rem",
+                    height: "1.75rem",
+                  }}
+                />
+                <span class="qs-text-ellipsis" title={item.src}>
+                  {item.src}
+                </span>
+              </div>
             )}
             filter={(media, lq) => media.src.toLowerCase().includes(lq)}
             handleSelect={function selectImage(media) {
