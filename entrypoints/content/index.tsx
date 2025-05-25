@@ -1805,6 +1805,8 @@ function TabList(props: { cookieStoreId?: string }) {
 }
 
 function ContainerList() {
+  const context = useMainContext();
+
   const [containers] = createResource(async function getAllTabs() {
     const response = await sendMessage("getAllContainers", undefined);
     if (!Array.isArray(response)) {
@@ -1826,6 +1828,7 @@ function ContainerList() {
           background: false,
           cookieStoreId: container.cookieStoreId,
         });
+        context.resetState(true);
       },
     },
     {
