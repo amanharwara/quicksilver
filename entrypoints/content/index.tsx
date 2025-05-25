@@ -38,6 +38,33 @@ import {
   storedBlocklist,
 } from "../../shared/storage";
 
+enum ElementInteractionMode {
+  Click = 0,
+  Focus = 1,
+  OpenInNewTab = 2,
+  Hover = 3,
+}
+type ElementInteraction =
+  | {
+      type: ElementInteractionMode.Click;
+    }
+  | {
+      type: ElementInteractionMode.Focus;
+    }
+  | {
+      type: ElementInteractionMode.OpenInNewTab;
+      cookieStoreId?: string;
+    }
+  | {
+      type: ElementInteractionMode.Hover;
+    };
+
+type HighlightElementsOptions = {
+  interaction: ElementInteraction;
+  checkOpacity?: boolean;
+  handleInstantlyIfOnlyOne?: boolean;
+};
+
 const mainContext = createContext<{
   shouldShowDebugInfo: Accessor<boolean>;
   toggleDebugInfo: () => void;
@@ -49,6 +76,10 @@ const mainContext = createContext<{
   registerKeyupListener: (
     listener: KeyEventListener
   ) => KeyEventListenerCleanup;
+  highlightElementsBySelector: (
+    selector: string,
+    options: HighlightElementsOptions
+  ) => void;
 }>();
 
 function useMainContext() {
@@ -142,13 +173,6 @@ function getKeyRepresentation(event: KeyboardEvent) {
   return `${ctrlKey ? "C-" : ""}${shiftKey ? "S-" : ""}${altKey ? "A-" : ""}${
     metaKey ? "M-" : ""
   }${key}`;
-}
-
-enum ElementInteractionMode {
-  Click = 0,
-  Focus = 1,
-  OpenInNewTab = 2,
-  Hover = 3,
 }
 
 type WordInNode = {
@@ -353,9 +377,9 @@ type KeyEventListenerCleanup = () => void;
 
 function handleElementInteraction(
   element: HTMLElement,
-  mode: ElementInteractionMode
+  mode: ElementInteraction
 ) {
-  switch (mode) {
+  switch (mode.type) {
     case ElementInteractionMode.Click:
       element.click();
       break;
@@ -370,6 +394,7 @@ function handleElementInteraction(
       sendMessage("openNewTab", {
         url: href,
         background: true,
+        cookieStoreId: mode.cookieStoreId,
       });
       break;
     }
@@ -857,14 +882,14 @@ function SearchLinksAndButtons() {
     desc: "Open",
     fn: (item: ClickableItem) => {
       const element = item.element;
-      handleElementInteraction(element, ElementInteractionMode.Click);
+      handleElementInteraction(element, { type: ElementInteractionMode.Click });
     },
   };
   const focusAction = {
     desc: "Focus",
     fn: (item: ClickableItem) => {
       const element = item.element;
-      handleElementInteraction(element, ElementInteractionMode.Focus);
+      handleElementInteraction(element, { type: ElementInteractionMode.Focus });
     },
   };
   const selectedItemActions = createMemo(() => {
@@ -874,10 +899,9 @@ function SearchLinksAndButtons() {
         desc: "Open in new tab",
         fn: (item: ClickableItem) => {
           const element = item.element;
-          handleElementInteraction(
-            element,
-            ElementInteractionMode.OpenInNewTab
-          );
+          handleElementInteraction(element, {
+            type: ElementInteractionMode.OpenInNewTab,
+          });
         },
       });
       actions.push({
@@ -1832,6 +1856,20 @@ function ContainerList() {
       },
     },
     {
+      name: "Highlight links to open in container",
+      fn: function highlightLinksToOpenInContainer() {
+        const container = selectedContainer();
+        if (!container) return;
+        context.resetState(true);
+        context.highlightElementsBySelector("a", {
+          interaction: {
+            type: ElementInteractionMode.OpenInNewTab,
+            cookieStoreId: container.cookieStoreId,
+          },
+        });
+      },
+    },
+    {
       name: "List open tabs",
       fn: function listOpenTabsForContainer() {
         const container = selectedContainer();
@@ -2022,10 +2060,10 @@ function Root() {
 
   const state: {
     highlightInput: string;
-    highlightInteractionMode: ElementInteractionMode;
+    highlightInteractionMode: ElementInteraction;
   } = {
     highlightInput: "",
-    highlightInteractionMode: ElementInteractionMode.Click,
+    highlightInteractionMode: { type: ElementInteractionMode.Click },
   };
 
   const [currentMode, setCurrentMode] = createSignal(Mode.Normal);
@@ -2098,18 +2136,20 @@ function Root() {
   function getInteractionModeForElement(element: HTMLElement) {
     return element instanceof HTMLInputElement ||
       element instanceof HTMLSelectElement
-      ? ElementInteractionMode.Focus
+      ? { type: ElementInteractionMode.Focus }
       : state.highlightInteractionMode;
   }
 
   function highlightElementsBySelector(
     selector: string,
-    options: {
-      checkOpacity?: boolean;
-      handleInstantlyIfOnlyOne?: boolean;
-    } = {}
+    options: HighlightElementsOptions
   ) {
-    const { checkOpacity = true, handleInstantlyIfOnlyOne = false } = options;
+    const {
+      checkOpacity = true,
+      handleInstantlyIfOnlyOne = false,
+      interaction,
+    } = options;
+    state.highlightInteractionMode = interaction;
     clearAllHighlights();
     const elements = document.querySelectorAll<HTMLElement>(selector);
     if (!elements || elements.length === 0) {
@@ -2335,29 +2375,34 @@ function Root() {
 
   function highlightInteractiveElements() {
     if (currentMode() !== Mode.Highlight) {
-      state.highlightInteractionMode = ElementInteractionMode.Click;
-      highlightElementsBySelector(InteractiveElementsSelector);
+      highlightElementsBySelector(InteractiveElementsSelector, {
+        interaction: { type: ElementInteractionMode.Click },
+      });
     }
   }
 
   function highlightLinksToOpenInNewTab() {
     if (currentMode() !== Mode.Highlight) {
-      state.highlightInteractionMode = ElementInteractionMode.OpenInNewTab;
-      highlightElementsBySelector("a");
+      highlightElementsBySelector("a", {
+        interaction: {
+          type: ElementInteractionMode.OpenInNewTab,
+        },
+      });
     }
   }
 
   function highlightInteractiveElementsToHover() {
     if (currentMode() !== Mode.Highlight) {
-      state.highlightInteractionMode = ElementInteractionMode.Hover;
-      highlightElementsBySelector(InteractiveElementsSelector);
+      highlightElementsBySelector(InteractiveElementsSelector, {
+        interaction: { type: ElementInteractionMode.Hover },
+      });
     }
   }
 
   function highlightAllInputs() {
     if (currentMode() !== Mode.Highlight) {
-      state.highlightInteractionMode = ElementInteractionMode.Focus;
       highlightElementsBySelector("input,textarea,[contenteditable]", {
+        interaction: { type: ElementInteractionMode.Focus },
         checkOpacity: false,
         handleInstantlyIfOnlyOne: true,
       });
@@ -3088,6 +3133,7 @@ function Root() {
         resetState,
         registerKeydownListener,
         registerKeyupListener,
+        highlightElementsBySelector,
       }}
     >
       <div
