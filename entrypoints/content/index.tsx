@@ -2095,15 +2095,29 @@ function Root() {
     }
   }
 
-  function highlightElementsBySelector(selector: string, checkOpacity = true) {
+  function getInteractionModeForElement(element: HTMLElement) {
+    return element instanceof HTMLInputElement ||
+      element instanceof HTMLSelectElement
+      ? ElementInteractionMode.Focus
+      : state.highlightInteractionMode;
+  }
+
+  function highlightElementsBySelector(
+    selector: string,
+    options: {
+      checkOpacity?: boolean;
+      handleInstantlyIfOnlyOne?: boolean;
+    } = {}
+  ) {
+    const { checkOpacity = true, handleInstantlyIfOnlyOne = false } = options;
     clearAllHighlights();
     const elements = document.querySelectorAll<HTMLElement>(selector);
-    if (!elements) {
+    if (!elements || elements.length === 0) {
       return;
     }
     const highlightIDs = twoCharIDGenerator();
     const windowHeight = window.innerHeight;
-    let createdHighlights = 0;
+    let createdHighlights: string[] = [];
     const highlightElements: HTMLElement[] = [];
     for (let index = 0; index < elements.length; index++) {
       const element = elements[index];
@@ -2146,29 +2160,32 @@ function Root() {
         }
       }
 
-      const id = highlightIDs.next().value;
+      const id = highlightIDs.next().value as string;
       const highlight = createElement("div", {
         styles: {
           ...HighlightStyles,
           translate: `${elementRect.x}px ${elementRect.y}px`,
         },
-        text: id as string,
+        text: id,
       });
       highlightElements.push(highlight);
 
-      idToHighlightElementMap.set(id as string, highlight);
+      idToHighlightElementMap.set(id, highlight);
       elementToHighlightMap.set(highlight, {
         type: "element",
         element,
       });
-
-      createdHighlights++;
+      createdHighlights.push(id);
+    }
+    if (createdHighlights.length === 1 && handleInstantlyIfOnlyOne) {
+      handleHighlightInteraction(createdHighlights[0]);
+      return;
     }
     for (let i = 0; i < highlightElements.length; i++) {
       const element = highlightElements[i];
       highlightsContainer?.append(element);
     }
-    if (createdHighlights === 0) {
+    if (createdHighlights.length === 0) {
       return;
     }
     setCurrentMode(Mode.Highlight);
@@ -2181,13 +2198,14 @@ function Root() {
     const highlight = elementToHighlightMap.get(highlightElement);
     if (!highlight) return;
 
+    setCurrentMode(Mode.Normal);
+    state.highlightInput = "";
+    clearAllHighlights();
+
     if (highlight.type === "element") {
       handleElementInteraction(
         highlight.element,
-        highlight.element instanceof HTMLInputElement ||
-          highlight.element instanceof HTMLSelectElement
-          ? ElementInteractionMode.Focus
-          : state.highlightInteractionMode
+        getInteractionModeForElement(highlight.element)
       );
     } else if (highlight.type === "word") {
       startVisualMode(highlight.word);
@@ -2224,10 +2242,7 @@ function Root() {
     if (filtered.length === 1 && firstResult === highlightInput) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      setCurrentMode(Mode.Normal);
-      state.highlightInput = "";
       handleHighlightInteraction(firstResult);
-      clearAllHighlights();
     } else if (filtered.length === 0) {
       setCurrentMode(Mode.Normal);
       state.highlightInput = "";
@@ -2342,7 +2357,10 @@ function Root() {
   function highlightAllInputs() {
     if (currentMode() !== Mode.Highlight) {
       state.highlightInteractionMode = ElementInteractionMode.Focus;
-      highlightElementsBySelector("input,textarea,[contenteditable]", false);
+      highlightElementsBySelector("input,textarea,[contenteditable]", {
+        checkOpacity: false,
+        handleInstantlyIfOnlyOne: true,
+      });
     }
   }
 
