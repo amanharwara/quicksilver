@@ -65,7 +65,7 @@ type HighlightElementsOptions = {
   handleInstantlyIfOnlyOne?: boolean;
 };
 
-const mainContext = createContext<{
+type Context = {
   shouldShowDebugInfo: Accessor<boolean>;
   toggleDebugInfo: () => void;
   hideAllPopups: () => void;
@@ -80,7 +80,8 @@ const mainContext = createContext<{
     selector: string,
     options: HighlightElementsOptions
   ) => void;
-}>();
+};
+const mainContext = createContext<Context>();
 
 function useMainContext() {
   const ctx = useContext(mainContext);
@@ -257,10 +258,13 @@ const PopupStyles: JSX.CSSProperties = {
   padding: 0,
   border: 0,
 };
-function Popup(props: ComponentProps<"dialog">) {
+interface PopupProps extends ComponentProps<"dialog"> {
+  context?: Context;
+}
+function Popup(props: PopupProps) {
   let popup: HTMLDialogElement | undefined;
 
-  const context = useMainContext();
+  const context = props.context ?? useMainContext();
 
   const clickListener = (event: MouseEvent) => {
     if (!popup || !(event.target instanceof Element)) {
@@ -617,6 +621,7 @@ function VirtualizedList<Item extends unknown>(props: {
   focusedIndex: Accessor<number>;
   itemRenderFn: (item: Item, index: Accessor<number>) => JSX.Element;
   style?: JSX.CSSProperties;
+  context?: Context;
 }) {
   const [itemSize, setItemSize] = createSignal(100);
   const [scrollOffset, setScrollOffset] = createSignal(0);
@@ -639,7 +644,7 @@ function VirtualizedList<Item extends unknown>(props: {
 
   let container: HTMLDivElement | undefined;
 
-  const context = useMainContext();
+  const context = props.context ?? useMainContext();
 
   return (
     <div
@@ -707,6 +712,7 @@ function ListSearch<Item extends unknown>(props: {
   itemContent: (item: Item, isFocused: boolean, index: number) => JSX.Element;
   itemProps?: ComponentProps<"button">;
   handleSelect: (item: Item, event: KeyboardEvent | MouseEvent) => void;
+  context?: Context;
 }) {
   let input: HTMLInputElement | undefined;
 
@@ -731,7 +737,7 @@ function ListSearch<Item extends unknown>(props: {
     return items.filter((item) => props.filter(item, lowercaseQuery));
   });
 
-  const context = useMainContext();
+  const context = props.context ?? useMainContext();
 
   onMount(() => {
     const cleanupKeydownListener = context.registerKeydownListener((event) => {
@@ -802,6 +808,7 @@ function ListSearch<Item extends unknown>(props: {
       }}
     >
       <VirtualizedList
+        context={context}
         items={filtered()}
         focusedIndex={focusedIndex}
         itemRenderFn={(item, index) => (
@@ -846,6 +853,7 @@ function ListSearch<Item extends unknown>(props: {
 
 function SearchLinksAndButtons() {
   const context = useMainContext();
+  let linkSearchContainer: HTMLDivElement | undefined;
 
   const items: ClickableItem[] = [];
   for (const element of document.querySelectorAll("a,button")) {
@@ -904,6 +912,32 @@ function SearchLinksAndButtons() {
           });
         },
       });
+      if (import.meta.env.BROWSER === "firefox") {
+        actions.push({
+          desc: "Open in container",
+          fn: (item: ClickableItem) => {
+            const element = item.element;
+            if (!linkSearchContainer) return;
+            const _el = createElement("div");
+            linkSearchContainer.parentElement!.appendChild(_el);
+            const dispose = render(
+              () => (
+                <ContainerList
+                  context={context}
+                  handleSelect={(container) => {
+                    handleElementInteraction(element, {
+                      type: ElementInteractionMode.OpenInNewTab,
+                      cookieStoreId: container.cookieStoreId,
+                    });
+                    dispose();
+                  }}
+                />
+              ),
+              _el
+            );
+          },
+        });
+      }
       actions.push({
         desc: "Copy link",
         fn: (item: ClickableItem) => {
@@ -919,7 +953,7 @@ function SearchLinksAndButtons() {
   }
 
   return (
-    <>
+    <div ref={linkSearchContainer}>
       <Popup
         style={{
           visibility: !!selectedItem() ? "hidden" : undefined,
@@ -978,15 +1012,15 @@ function SearchLinksAndButtons() {
             )}
             filter={({ desc }, lq) => desc.toLowerCase().includes(lq)}
             handleSelect={({ fn }) => {
-              context.resetState(true);
               const item = selectedItem();
               if (!item) return;
               fn(item);
+              context.resetState(true);
             }}
           />
         </Popup>
       </Show>
-    </>
+    </div>
   );
 }
 
@@ -1828,8 +1862,11 @@ function TabList(props: { cookieStoreId?: string }) {
   );
 }
 
-function ContainerList() {
-  const context = useMainContext();
+function ContainerList(props: {
+  context?: Context;
+  handleSelect?: (item: Container) => void;
+}) {
+  const context = props.context ?? useMainContext();
 
   const [containers] = createResource(async function getAllTabs() {
     const response = await sendMessage("getAllContainers", undefined);
@@ -1882,11 +1919,13 @@ function ContainerList() {
   return (
     <Show when={containers()}>
       <Popup
+        context={context}
         style={{
           visibility: !!selectedContainer() ? "hidden" : undefined,
         }}
       >
         <ListSearch
+          context={context}
           items={containers()!}
           itemContent={(container) => (
             <div
@@ -1914,9 +1953,13 @@ function ContainerList() {
           filter={(item, lowercaseQuery) =>
             Boolean(item.name.toLowerCase().includes(lowercaseQuery))
           }
-          handleSelect={function selectContainer(item) {
-            setSelectedContainer(item);
-          }}
+          handleSelect={
+            props.handleSelect
+              ? props.handleSelect
+              : (item) => {
+                  setSelectedContainer(item);
+                }
+          }
         />
       </Popup>
       <Show when={selectedContainer() && !shouldShowTabList()}>
@@ -2558,6 +2601,16 @@ function Root() {
     sendMessage("search", selectionText);
   }
 
+  const mainContextValue = createMemo(() => ({
+    shouldShowDebugInfo,
+    toggleDebugInfo: () => setShouldShowDebugInfo((b) => !b),
+    hideAllPopups,
+    resetState,
+    registerKeydownListener,
+    registerKeyupListener,
+    highlightElementsBySelector,
+  }));
+
   const actionsMap: Record<Mode, Actions> = {
     [Mode.Normal]: {
       "S-?": {
@@ -2811,9 +2864,34 @@ function Root() {
   if (import.meta.env.BROWSER === "firefox") {
     // Firefox-only features
 
-    actionsMap[Mode.Normal]["w c"] = {
+    actionsMap[Mode.Normal]["w c l"] = {
       desc: "List containers",
       fn: () => toggleContainerList(true),
+    };
+    actionsMap[Mode.Normal]["w c f"] = {
+      desc: "Highlight links to open in container",
+      fn: () => {
+        const _el = createElement("div");
+        if (!highlightsContainer) return;
+        highlightsContainer.parentElement!.appendChild(_el);
+        const dispose = render(
+          () => (
+            <ContainerList
+              context={mainContextValue()}
+              handleSelect={(container) => {
+                dispose();
+                highlightElementsBySelector("a", {
+                  interaction: {
+                    type: ElementInteractionMode.OpenInNewTab,
+                    cookieStoreId: container.cookieStoreId,
+                  },
+                });
+              }}
+            />
+          ),
+          _el
+        );
+      },
     };
   }
 
@@ -3125,17 +3203,7 @@ function Root() {
   });
 
   return (
-    <mainContext.Provider
-      value={{
-        shouldShowDebugInfo,
-        toggleDebugInfo: () => setShouldShowDebugInfo((b) => !b),
-        hideAllPopups,
-        resetState,
-        registerKeydownListener,
-        registerKeyupListener,
-        highlightElementsBySelector,
-      }}
-    >
+    <mainContext.Provider value={mainContextValue()}>
       <div
         ref={highlightsContainer}
         style={{
