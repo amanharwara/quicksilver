@@ -2868,6 +2868,29 @@ function Root() {
       desc: "List containers",
       fn: () => toggleContainerList(true),
     };
+    actionsMap[Mode.Normal]["w c n"] = {
+      desc: "New tab in container",
+      fn: () => {
+        const _el = createElement("div");
+        if (!highlightsContainer) return;
+        highlightsContainer.parentElement!.appendChild(_el);
+        const dispose = render(
+          () => (
+            <ContainerList
+              context={mainContextValue()}
+              handleSelect={(container) => {
+                dispose();
+                sendMessage("openNewTab", {
+                  background: false,
+                  cookieStoreId: container.cookieStoreId,
+                });
+              }}
+            />
+          ),
+          _el
+        );
+      },
+    };
     actionsMap[Mode.Normal]["w c f"] = {
       desc: "Highlight links to open in container",
       fn: () => {
