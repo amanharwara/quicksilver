@@ -121,4 +121,19 @@ onMessage("search", async (message) => {
   });
 });
 
+onMessage("moveTabNextToCurrentTab", async (message) => {
+  const id = message.data;
+  if (!isNumber(id)) {
+    return;
+  }
+  const [activeTab] = await browser.tabs.query({
+    active: true,
+    lastFocusedWindow: true,
+  });
+  const activeTabIndex = activeTab.index;
+  await browser.tabs.move(id, {
+    index: activeTabIndex + 1,
+  });
+});
+
 export default defineBackground(() => {});

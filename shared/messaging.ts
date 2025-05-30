@@ -26,6 +26,7 @@ export interface ProtocolMap {
   duplicateTab(id: Tab["id"]): void;
   closeTab(id: Tab["id"]): void;
   search(text: string): void;
+  moveTabNextToCurrentTab(id: Tab["id"]): void;
 }
 
 export const { sendMessage, onMessage } =

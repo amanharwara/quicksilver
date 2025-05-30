@@ -1794,6 +1794,14 @@ function TabList(props: { cookieStoreId?: string }) {
         sendMessage("duplicateTab", tab.id);
       },
     },
+    {
+      name: "Move next to current tab",
+      fn: function moveTabNextToCurrentTab() {
+        const tab = selectedTab();
+        if (!tab) return;
+        sendMessage("moveTabNextToCurrentTab", tab.id);
+      },
+    },
   ];
 
   return (
