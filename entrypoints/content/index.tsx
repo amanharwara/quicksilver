@@ -2112,9 +2112,19 @@ function Root() {
   const state: {
     highlightInput: string;
     highlightInteractionMode: ElementInteraction;
+    jumpToCharacter: {
+      char: string | null;
+      waitingForInput: boolean;
+      pos: "before" | "after";
+    };
   } = {
     highlightInput: "",
     highlightInteractionMode: { type: ElementInteractionMode.Click },
+    jumpToCharacter: {
+      char: null,
+      waitingForInput: false,
+      pos: "before",
+    },
   };
 
   const [currentMode, setCurrentMode] = createSignal(Mode.Normal);
@@ -2339,6 +2349,65 @@ function Root() {
       state.highlightInput = "";
       clearAllHighlights();
     }
+  }
+
+  function jumpToCharacter(char: string, direction: "forward" | "backward") {
+    const selection = getSelection();
+    console.log(selection);
+    if (!selection) {
+      return;
+    }
+
+    const focusNode = selection.focusNode;
+    console.log(focusNode);
+    if (!focusNode) {
+      return;
+    }
+
+    let focusOffset = selection.focusOffset;
+    const text = focusNode.textContent;
+    console.log({ focusOffset, text });
+    if (!text) {
+      return;
+    }
+
+    let index = -1;
+    const pos = state.jumpToCharacter.pos;
+    if (direction === "forward") {
+      if (pos === "before") {
+        focusOffset += 1;
+      }
+      index = text.indexOf(char, focusOffset);
+      if (pos === "after" && index > -1) {
+        index += 1;
+      }
+    } else {
+      focusOffset -= 1;
+      if (pos === "after") {
+        focusOffset -= 1;
+      }
+      index = text.lastIndexOf(char, focusOffset);
+      if (pos === "after" && index > -1) {
+        index += 1;
+      }
+    }
+    if (index === -1) {
+      return;
+    }
+
+    const mode = currentMode();
+    if (mode === Mode.VisualCaret) {
+      selection.setPosition(focusNode, index);
+    } else if (mode === Mode.VisualRange) {
+      selection.extend(focusNode, index);
+    }
+  }
+
+  function setCharacterAndJump(char: string) {
+    state.jumpToCharacter.char = char;
+    state.jumpToCharacter.waitingForInput = false;
+
+    jumpToCharacter(char, "forward");
   }
 
   function getElementToScroll(element: HTMLElement) {
@@ -2839,6 +2908,48 @@ function Root() {
   actionsMap[Mode.VisualRange]["w"] = extendToRightByWord;
   actionsMap[Mode.VisualRange]["b"] = extendToLeftByWord;
 
+  const jumpToBeforeCharacter = {
+    desc: "Jump to before character",
+    fn: () => {
+      state.jumpToCharacter.char = null;
+      state.jumpToCharacter.pos = "before";
+      state.jumpToCharacter.waitingForInput = true;
+    },
+  };
+  actionsMap[Mode.VisualCaret]["t"] = jumpToBeforeCharacter;
+  actionsMap[Mode.VisualRange]["t"] = jumpToBeforeCharacter;
+
+  const jumpToAfterCharacter = {
+    desc: "Jump to after character",
+    fn: () => {
+      state.jumpToCharacter.char = null;
+      state.jumpToCharacter.pos = "after";
+      state.jumpToCharacter.waitingForInput = true;
+    },
+  };
+  actionsMap[Mode.VisualCaret]["f"] = jumpToAfterCharacter;
+  actionsMap[Mode.VisualRange]["f"] = jumpToAfterCharacter;
+
+  const jumpToNextCharOccurance = {
+    desc: "Jump to next character occurance",
+    fn: () => {
+      if (!state.jumpToCharacter.char) return;
+      jumpToCharacter(state.jumpToCharacter.char, "forward");
+    },
+  };
+  actionsMap[Mode.VisualCaret][";"] = jumpToNextCharOccurance;
+  actionsMap[Mode.VisualRange][";"] = jumpToNextCharOccurance;
+
+  const jumpToPrevCharOccurance = {
+    desc: "Jump to previous character occurance",
+    fn: () => {
+      if (!state.jumpToCharacter.char) return;
+      jumpToCharacter(state.jumpToCharacter.char, "backward");
+    },
+  };
+  actionsMap[Mode.VisualCaret][","] = jumpToPrevCharOccurance;
+  actionsMap[Mode.VisualRange][","] = jumpToPrevCharOccurance;
+
   if (import.meta.env.BROWSER !== "firefox") {
     // Chrome doesn't seem to allow using Shift + arrows to
     // extend selection if it is collapsed, so we can register
@@ -3101,6 +3212,7 @@ function Root() {
         event.stopPropagation();
       }
       resetState(true);
+      state.jumpToCharacter.waitingForInput = false;
       return;
     }
 
@@ -3115,6 +3227,20 @@ function Root() {
       event.stopImmediatePropagation();
       event.stopPropagation();
       updateHighlightInput(key, event);
+      return;
+    }
+
+    if (
+      !ctrlKey &&
+      !shiftKey &&
+      !altKey &&
+      !metaKey &&
+      state.jumpToCharacter.waitingForInput &&
+      key !== "Escape"
+    ) {
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+      setCharacterAndJump(key);
       return;
     }
 
