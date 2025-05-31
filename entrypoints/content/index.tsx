@@ -2353,20 +2353,17 @@ function Root() {
 
   function jumpToCharacter(char: string, direction: "forward" | "backward") {
     const selection = getSelection();
-    console.log(selection);
     if (!selection) {
       return;
     }
 
     const focusNode = selection.focusNode;
-    console.log(focusNode);
     if (!focusNode) {
       return;
     }
 
     let focusOffset = selection.focusOffset;
     const text = focusNode.textContent;
-    console.log({ focusOffset, text });
     if (!text) {
       return;
     }
@@ -3230,14 +3227,7 @@ function Root() {
       return;
     }
 
-    if (
-      !ctrlKey &&
-      !shiftKey &&
-      !altKey &&
-      !metaKey &&
-      state.jumpToCharacter.waitingForInput &&
-      key !== "Escape"
-    ) {
+    if (state.jumpToCharacter.waitingForInput && key !== "Escape") {
       event.stopImmediatePropagation();
       event.stopPropagation();
       setCharacterAndJump(key);
