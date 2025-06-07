@@ -35,8 +35,10 @@ import {
 } from "./selection";
 import {
   Blocklist,
+  ConfigV1,
   disabledGlobally,
   storedBlocklist,
+  storedConfig,
 } from "../../shared/storage";
 
 enum ElementInteractionMode {
@@ -2344,95 +2346,126 @@ function InteractWithCustomSelector(props: {
   );
 }
 
-type ConfigObject = {
-  interactiveElementsSelector: string;
-};
+function Config(props: { context: Context }) {
+  const [config, setConfig] = createSignal<ConfigV1>();
+  storedConfig.getValue().then(setConfig);
 
-function Config(props: { context: Context; config: ConfigObject }) {
-  const [interativeSelector, setInteractiveSelector] = createSignal(
-    props.config.interactiveElementsSelector
-  );
-  createEffect(() => {
-    props.config.interactiveElementsSelector = interativeSelector();
-  });
+  function storeConfig() {
+    storedConfig.setValue(config()!);
+  }
 
   let closeButton: HTMLButtonElement | undefined;
   onMount(() => {
     closeButton?.focus();
+
+    const unwatch = storedConfig.watch(setConfig);
+    onCleanup(() => {
+      unwatch();
+    });
   });
 
   return (
-    <Popup
-      context={props.context}
-      style={{
-        padding: "1rem",
-      }}
-    >
-      <div
+    <Show when={config()}>
+      <Popup
+        context={props.context}
         style={{
-          display: "flex",
-          "align-items": "center",
-          "justify-content": "space-between",
-          gap: "1rem",
-          "margin-bottom": "1rem",
+          padding: "1rem",
         }}
       >
         <div
           style={{
-            "font-weight": "bold",
-          }}
-        >
-          Configuration
-        </div>
-        <button
-          class="qs-btn qs-outline-btn"
-          style={{
             display: "flex",
-            padding: rem(0.25),
+            "align-items": "center",
+            "justify-content": "space-between",
+            gap: "1rem",
+            "margin-bottom": "1rem",
           }}
-          onClick={() => props.context.resetState(true)}
-          ref={closeButton}
         >
-          <CloseIcon
+          <div
             style={{
-              width: rem(1.25),
-              height: rem(1.25),
-              color: Colors["cb-light-90"],
+              "font-weight": "bold",
             }}
-          />
-        </button>
-      </div>
-      <div
-        style={{
-          display: "flex",
-          "flex-direction": "column",
-          gap: "0.5rem",
-        }}
-      >
-        <label for="int-el-sel">Interactive elements selector:</label>
-        <input
-          id="int-el-sel"
-          type="text"
-          value={interativeSelector()}
-          onInput={(event) => {
-            setInteractiveSelector(event.target.value);
+          >
+            Configuration
+          </div>
+          <button
+            class="qs-btn qs-outline-btn"
+            style={{
+              display: "flex",
+              padding: rem(0.25),
+            }}
+            onClick={() => props.context.resetState(true)}
+            ref={closeButton}
+          >
+            <CloseIcon
+              style={{
+                width: rem(1.25),
+                height: rem(1.25),
+                color: Colors["cb-light-90"],
+              }}
+            />
+          </button>
+        </div>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            storeConfig();
           }}
-        />
-        <button
-          class="qs-btn qs-outline-btn"
-          style={{
-            "align-self": "start",
-            color: Colors["cb-light-90"],
-            padding: `${rem(0.25)} ${rem(0.35)}`,
-          }}
-          onClick={() =>
-            setInteractiveSelector(DefaultInteractiveElementsSelector)
-          }
         >
-          Reset to default
-        </button>
-      </div>
-    </Popup>
+          <div
+            style={{
+              display: "flex",
+              "flex-direction": "column",
+              "margin-bottom": rem(0.5),
+              gap: rem(0.5),
+            }}
+          >
+            <label for="int-el-sel">Interactive elements selector:</label>
+            <input
+              id="int-el-sel"
+              type="text"
+              value={config()?.interactiveElementsSelector}
+              onInput={(event) => {
+                setConfig((prev) => ({
+                  ...prev,
+                  interactiveElementsSelector: event.target.value,
+                }));
+              }}
+            />
+            <button
+              type="button"
+              class="qs-btn qs-outline-btn"
+              style={{
+                "align-self": "start",
+                color: Colors["cb-light-90"],
+                padding: `${rem(0.25)} ${rem(0.35)}`,
+              }}
+              onClick={() => {
+                setConfig((prev) => ({
+                  ...prev,
+                  interactiveElementsSelector:
+                    DefaultInteractiveElementsSelector,
+                }));
+              }}
+            >
+              Reset to default
+            </button>
+          </div>
+          <button
+            type="submit"
+            class="qs-btn qs-outline-btn"
+            style={{
+              "align-self": "start",
+              color: Colors["cb-light-90"],
+              padding: `${rem(0.25)} ${rem(0.35)}`,
+            }}
+          >
+            Save
+          </button>
+        </form>
+      </Popup>
+    </Show>
   );
 }
 
@@ -2470,9 +2503,12 @@ function Root() {
     popupRoot: undefined,
   };
 
-  const config: ConfigObject = {
+  let config: ConfigV1 = {
     interactiveElementsSelector: DefaultInteractiveElementsSelector,
   };
+  storedConfig.watch((newConfig) => {
+    config = newConfig;
+  });
 
   const [currentMode, setCurrentMode] = createSignal(Mode.Normal);
 
@@ -3885,7 +3921,7 @@ function Root() {
         />
       </Show>
       <Show when={shouldShowConfig()}>
-        <Config context={context} config={config} />
+        <Config context={context} />
       </Show>
       <Show when={shouldShowContainerList()}>
         <ContainerList context={context} />
