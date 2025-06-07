@@ -3,6 +3,7 @@ import { Container, sendMessage } from "../../shared/messaging";
 import {
   ArrowBigUpIcon,
   ChevronDownIcon,
+  CloseIcon,
   LoopIcon,
   MuteIcon,
   PauseIcon,
@@ -60,7 +61,7 @@ type ElementInteraction =
     };
 
 type HighlightElementsOptions = {
-  interaction: ElementInteraction;
+  interaction: ElementInteraction | undefined;
   checkOpacity?: boolean;
   handleInstantlyIfOnlyOne?: boolean;
 };
@@ -80,14 +81,8 @@ type Context = {
     selector: string,
     options: HighlightElementsOptions
   ) => void;
+  popupRoot: () => HTMLElement | undefined;
 };
-const mainContext = createContext<Context>();
-
-function useMainContext() {
-  const ctx = useContext(mainContext);
-  if (!ctx) throw new Error("No quicksilver context available");
-  return ctx;
-}
 
 const letters = Array(26)
   .fill(0)
@@ -231,15 +226,6 @@ const HighlightStyles: ElementStyles = {
   borderRadius: rem(0.25),
 };
 
-const ButtonDefaultStyles: JSX.CSSProperties = {
-  margin: "0",
-  padding: "0",
-  "border-color": "transparent",
-  "font-family": "inherit",
-  "font-size": "inherit",
-  "text-align": "left",
-};
-
 const PopupStyles: JSX.CSSProperties = {
   position: "fixed",
   bottom: rem(0.5),
@@ -259,12 +245,10 @@ const PopupStyles: JSX.CSSProperties = {
   border: 0,
 };
 interface PopupProps extends ComponentProps<"dialog"> {
-  context?: Context;
+  context: Context;
 }
 function Popup(props: PopupProps) {
   let popup: HTMLDialogElement | undefined;
-
-  const context = props.context ?? useMainContext();
 
   const clickListener = (event: MouseEvent) => {
     if (!popup || !(event.target instanceof Element)) {
@@ -273,7 +257,7 @@ function Popup(props: PopupProps) {
     if (popup.contains(event.target)) {
       return;
     }
-    context.hideAllPopups();
+    props.context.hideAllPopups();
   };
 
   onMount(() => {
@@ -391,7 +375,7 @@ function handleElementInteraction(
       setTimeout(() => element.focus());
       break;
     case ElementInteractionMode.OpenInNewTab: {
-      if (!(element instanceof HTMLAnchorElement)) {
+      if (!isAnchorElement(element)) {
         return;
       }
       const href = element.href;
@@ -410,6 +394,7 @@ function handleElementInteraction(
 }
 
 function ActionsHelp(props: {
+  context: Context;
   mode: Accessor<Mode>;
   keyInput: string;
   actionsHelpByMode: {
@@ -422,6 +407,7 @@ function ActionsHelp(props: {
 }) {
   return (
     <Popup
+      context={props.context}
       style={{
         "--gap": rem(1.65),
         "--padding": rem(1),
@@ -492,12 +478,13 @@ function ActionsHelp(props: {
 }
 
 function ActionSuggestion(props: {
+  context: Context;
   keyInput: string;
   actionKeys: string[];
   actions: Actions;
 }) {
   return (
-    <Popup>
+    <Popup context={props.context}>
       <div
         style={{
           display: "flex",
@@ -593,11 +580,11 @@ function ClickableItemComp(
       ref={itemElement}
       tabIndex={props.index !== 0 ? "-1" : undefined}
       classList={{
+        "qs-btn": true,
         "qs-list-item": true,
         active: isFocused(),
       }}
       style={{
-        ...ButtonDefaultStyles,
         display: "grid",
         "align-items": "center",
         gap: rem(0.125),
@@ -621,7 +608,7 @@ function VirtualizedList<Item extends unknown>(props: {
   focusedIndex: Accessor<number>;
   itemRenderFn: (item: Item, index: Accessor<number>) => JSX.Element;
   style?: JSX.CSSProperties;
-  context?: Context;
+  context: Context;
 }) {
   const [itemSize, setItemSize] = createSignal(100);
   const [scrollOffset, setScrollOffset] = createSignal(0);
@@ -644,7 +631,7 @@ function VirtualizedList<Item extends unknown>(props: {
 
   let container: HTMLDivElement | undefined;
 
-  const context = props.context ?? useMainContext();
+  const context = props.context;
 
   return (
     <div
@@ -707,12 +694,14 @@ function VirtualizedList<Item extends unknown>(props: {
 }
 
 function ListSearch<Item extends unknown>(props: {
+  context: Context;
   items: Item[] | Accessor<Item[]>;
   filter: (item: Item, lowercaseQuery: string) => boolean;
   itemContent: (item: Item, isFocused: boolean, index: number) => JSX.Element;
-  itemProps?: ComponentProps<"button">;
   handleSelect: (item: Item, event: KeyboardEvent | MouseEvent) => void;
-  context?: Context;
+  onSelectionChange?: (item: Item) => void;
+  itemProps?: ComponentProps<"button">;
+  onClose?: () => void;
 }) {
   let input: HTMLInputElement | undefined;
 
@@ -737,7 +726,15 @@ function ListSearch<Item extends unknown>(props: {
     return items.filter((item) => props.filter(item, lowercaseQuery));
   });
 
-  const context = props.context ?? useMainContext();
+  const focusedItem = createMemo(() => filtered()[focusedIndex()]);
+
+  createEffect(() => {
+    if (props.onSelectionChange) {
+      props.onSelectionChange(focusedItem());
+    }
+  });
+
+  const context = props.context;
 
   onMount(() => {
     const cleanupKeydownListener = context.registerKeydownListener((event) => {
@@ -745,6 +742,7 @@ function ListSearch<Item extends unknown>(props: {
         case "escape":
           event.preventDefault();
           context.resetState(true);
+          props.onClose?.();
           return true;
         case "pageup":
         case "pagedown":
@@ -783,7 +781,7 @@ function ListSearch<Item extends unknown>(props: {
     const cleanupKeyupListener = context.registerKeyupListener((event) => {
       switch (event.key) {
         case "Enter": {
-          const item = filtered()[focusedIndex()];
+          const item = focusedItem();
           if (item) {
             props.handleSelect(item, event);
           }
@@ -851,8 +849,7 @@ function ListSearch<Item extends unknown>(props: {
   );
 }
 
-function SearchLinksAndButtons() {
-  const context = useMainContext();
+function SearchLinksAndButtons(props: { context: Context }) {
   let linkSearchContainer: HTMLDivElement | undefined;
 
   const items: ClickableItem[] = [];
@@ -923,7 +920,7 @@ function SearchLinksAndButtons() {
             const dispose = render(
               () => (
                 <ContainerList
-                  context={context}
+                  context={props.context}
                   handleSelect={(container) => {
                     handleElementInteraction(element, {
                       type: ElementInteractionMode.OpenInNewTab,
@@ -955,11 +952,13 @@ function SearchLinksAndButtons() {
   return (
     <div ref={linkSearchContainer}>
       <Popup
+        context={props.context}
         style={{
           visibility: !!selectedItem() ? "hidden" : undefined,
         }}
       >
         <ListSearch
+          context={props.context}
           items={items}
           filter={(a, lowercaseQuery) => {
             return (
@@ -998,8 +997,9 @@ function SearchLinksAndButtons() {
         />
       </Popup>
       <Show when={selectedItem()}>
-        <Popup>
+        <Popup context={props.context}>
           <ListSearch
+            context={props.context}
             items={selectedItemActions()}
             itemContent={({ desc }) => (
               <span
@@ -1015,7 +1015,7 @@ function SearchLinksAndButtons() {
               const item = selectedItem();
               if (!item) return;
               fn(item);
-              context.resetState(true);
+              props.context.resetState(true);
             }}
           />
         </Popup>
@@ -1060,11 +1060,10 @@ function Toggle(props: {
 
 const playbackRates = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 function PlaybackRateMenu(props: {
+  context: Context;
   media: HTMLMediaElement;
   closeMenu: () => void;
 }) {
-  const context = useMainContext();
-
   const [focusedIndex, setFocusedIndex] = createSignal(
     playbackRates.findIndex((r) => r === props.media.playbackRate)
   );
@@ -1075,7 +1074,7 @@ function PlaybackRateMenu(props: {
   }
 
   onMount(() => {
-    const cleanup = context.registerKeydownListener((event) => {
+    const cleanup = props.context.registerKeydownListener((event) => {
       const key = getKeyRepresentation(event);
       switch (key) {
         case "arrowdown":
@@ -1125,11 +1124,11 @@ function PlaybackRateMenu(props: {
         {(rate, index) => (
           <button
             classList={{
+              "qs-btn": true,
               "qs-list-item": true,
               active: focusedIndex() === index(),
             }}
             style={{
-              ...ButtonDefaultStyles,
               color: Colors["cb-light-90"],
               "font-size": rem(1),
               padding: `${rem(0.325)} ${rem(1.25)}`,
@@ -1173,7 +1172,11 @@ function msToTime(duration: number) {
   }:${seconds < 10 ? "0" + seconds : seconds}`;
 }
 
-function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
+function MediaControls(props: {
+  context: Context;
+  media: HTMLMediaElement;
+  close: () => void;
+}) {
   const [isPlaying, setIsPlaying] = createSignal(!props.media.paused);
   const [currentTime, setCurrentTime] = createSignal(props.media.currentTime);
   const [duration, setDuration] = createSignal(props.media.duration);
@@ -1195,8 +1198,6 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
   const [playbackRateMenuPos, setPlaybackRateMenuPos] = createSignal<
     { minWidth: number; bottom: number; right: number } | undefined
   >();
-
-  const context = useMainContext();
 
   onMount(() => {
     if (popup) {
@@ -1275,90 +1276,95 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
     //
     // maybe allow registering actions instead of having to handle keydown directly?
     //
-    const cleanupKeydownListener = context.registerKeydownListener((event) => {
-      const key = getKeyRepresentation(event);
-      switch (key) {
-        case "<leader>": {
-          const input = (event.target as HTMLElement).closest("input");
-          if (input && input.type !== "range") {
-            return false;
+    const cleanupKeydownListener = props.context.registerKeydownListener(
+      (event) => {
+        const key = getKeyRepresentation(event);
+        switch (key) {
+          case "<leader>": {
+            const input = (event.target as HTMLElement).closest("input");
+            if (input && input.type !== "range") {
+              return false;
+            }
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            toggleMediaPlay();
+            return true;
           }
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          toggleMediaPlay();
-          return true;
+          case "S-<": {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            decreaseMediaPlaybackRate(props.media);
+            return true;
+          }
+          case "S->": {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            increaseMediaPlaybackRate(props.media);
+            return true;
+          }
+          case "m": {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            props.media.muted = !props.media.muted;
+            return true;
+          }
+          case "arrowdown": {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            props.media.volume = Math.max(props.media.volume - 0.15, 0);
+            return true;
+          }
+          case "arrowup": {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            props.media.volume = Math.min(props.media.volume + 0.15, 1);
+            return true;
+          }
+          case "arrowleft": {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            props.media.currentTime = Math.max(props.media.currentTime - 5, 0);
+            return true;
+          }
+          case "arrowright": {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            props.media.currentTime = Math.min(
+              props.media.currentTime + 5,
+              props.media.duration
+            );
+            return true;
+          }
+          case ",": {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            props.media.currentTime = Math.max(
+              props.media.currentTime - 0.1,
+              0
+            );
+            return true;
+          }
+          case ".": {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            props.media.currentTime = Math.min(
+              props.media.currentTime + 0.1,
+              props.media.duration
+            );
+            return true;
+          }
+          case "escape": {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            props.close();
+            return true;
+          }
+          default:
+            break;
         }
-        case "S-<": {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          decreaseMediaPlaybackRate(props.media);
-          return true;
-        }
-        case "S->": {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          increaseMediaPlaybackRate(props.media);
-          return true;
-        }
-        case "m": {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          props.media.muted = !props.media.muted;
-          return true;
-        }
-        case "arrowdown": {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          props.media.volume = Math.max(props.media.volume - 0.15, 0);
-          return true;
-        }
-        case "arrowup": {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          props.media.volume = Math.min(props.media.volume + 0.15, 1);
-          return true;
-        }
-        case "arrowleft": {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          props.media.currentTime = Math.max(props.media.currentTime - 5, 0);
-          return true;
-        }
-        case "arrowright": {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          props.media.currentTime = Math.min(
-            props.media.currentTime + 5,
-            props.media.duration
-          );
-          return true;
-        }
-        case ",": {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          props.media.currentTime = Math.max(props.media.currentTime - 0.1, 0);
-          return true;
-        }
-        case ".": {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          props.media.currentTime = Math.min(
-            props.media.currentTime + 0.1,
-            props.media.duration
-          );
-          return true;
-        }
-        case "escape": {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          props.close();
-          return true;
-        }
-        default:
-          break;
+        return false;
       }
-      return false;
-    });
+    );
 
     onCleanup(() => {
       controller.abort();
@@ -1385,6 +1391,7 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
 
   return (
     <Popup
+      context={props.context}
       ref={popup}
       style={{
         display: "grid",
@@ -1464,14 +1471,13 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
         />
       </div>
       <button
-        class="qs-outline-btn"
+        class="qs-btn qs-outline-btn"
         style={{
           display: "grid",
           "place-items": "center",
           "grid-column": "2 / 3",
           "grid-row": "3",
           "place-self": "center",
-          ...ButtonDefaultStyles,
           color: Colors["cb-light-90"],
           padding: rem(0.25),
           border: `2px solid ${Colors["cb-dark-50"]}`,
@@ -1516,13 +1522,12 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
       >
         <button
           ref={playbackRateButton}
-          class="qs-outline-btn"
+          class="qs-btn qs-outline-btn"
           popoverTarget="playback-rate-menu"
           style={{
             display: "flex",
             "align-items": "center",
             gap: rem(0.25),
-            ...ButtonDefaultStyles,
             color: Colors["cb-light-90"],
             padding: `${rem(0.25)} ${rem(0.325)}`,
             border: `2px solid ${Colors["cb-dark-50"]}`,
@@ -1580,6 +1585,7 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
             >
               <Show when={isPlaybackRateMenuOpen()}>
                 <PlaybackRateMenu
+                  context={props.context}
                   media={props.media}
                   closeMenu={() =>
                     document.getElementById("playback-rate-menu")?.hidePopover()
@@ -1614,7 +1620,7 @@ function MediaControls(props: { media: HTMLMediaElement; close: () => void }) {
   );
 }
 
-function MediaList() {
+function MediaList(props: { context: Context }) {
   const mediaElements: HTMLMediaElement[] = [];
   for (const media of document.querySelectorAll("video, audio")) {
     if (!(media instanceof HTMLMediaElement)) continue;
@@ -1627,8 +1633,9 @@ function MediaList() {
   return (
     <>
       <Show when={!selectedMedia()}>
-        <Popup>
+        <Popup context={props.context}>
           <ListSearch
+            context={props.context}
             items={mediaElements}
             itemContent={(item) => (
               <span class="qs-text-ellipsis" title={item.src}>
@@ -1644,6 +1651,7 @@ function MediaList() {
       </Show>
       <Show when={selectedMedia()}>
         <MediaControls
+          context={props.context}
           media={selectedMedia()!}
           close={() => {
             setSelectedMedia(null);
@@ -1654,14 +1662,12 @@ function MediaList() {
   );
 }
 
-function ImageList() {
+function ImageList(props: { context: Context }) {
   const imageElements: HTMLImageElement[] = [];
   for (const image of document.querySelectorAll("img")) {
     if (!(image instanceof HTMLImageElement)) continue;
     imageElements.push(image);
   }
-
-  const context = useMainContext();
 
   const [selectedImage, setSelectedImage] =
     createSignal<HTMLImageElement | null>(null);
@@ -1693,11 +1699,13 @@ function ImageList() {
     <>
       <Show when={!selectedImage()}>
         <Popup
+          context={props.context}
           style={{
             visibility: !!selectedImage() ? "hidden" : undefined,
           }}
         >
           <ListSearch
+            context={props.context}
             items={imageElements}
             itemContent={(item) => (
               <div
@@ -1728,8 +1736,9 @@ function ImageList() {
         </Popup>
       </Show>
       <Show when={selectedImage()}>
-        <Popup>
+        <Popup context={props.context}>
           <ListSearch
+            context={props.context}
             items={imageActions}
             itemContent={(item) => (
               <span
@@ -1742,7 +1751,7 @@ function ImageList() {
             )}
             filter={({ name }, lq) => name.toLowerCase().includes(lq)}
             handleSelect={(action) => {
-              context.resetState(true);
+              props.context.resetState(true);
               action.fn();
             }}
           />
@@ -1752,7 +1761,7 @@ function ImageList() {
   );
 }
 
-function TabList(props: { cookieStoreId?: string }) {
+function TabList(props: { context: Context; cookieStoreId?: string }) {
   const [tabs] = createResource(async function getAllTabs() {
     const cookieStoreId = props.cookieStoreId;
     const response = await sendMessage(
@@ -1764,8 +1773,6 @@ function TabList(props: { cookieStoreId?: string }) {
     }
     return response;
   });
-
-  const context = useMainContext();
 
   const [selectedTab, setSelectedTab] = createSignal<Browser.tabs.Tab>();
 
@@ -1807,11 +1814,13 @@ function TabList(props: { cookieStoreId?: string }) {
   return (
     <Show when={tabs()}>
       <Popup
+        context={props.context}
         style={{
           visibility: !!selectedTab() ? "hidden" : undefined,
         }}
       >
         <ListSearch
+          context={props.context}
           items={tabs()!}
           itemContent={(tab) => (
             <>
@@ -1846,8 +1855,9 @@ function TabList(props: { cookieStoreId?: string }) {
         />
       </Popup>
       <Show when={selectedTab()}>
-        <Popup>
+        <Popup context={props.context}>
           <ListSearch
+            context={props.context}
             items={tabActions}
             itemContent={(item) => (
               <span
@@ -1860,7 +1870,7 @@ function TabList(props: { cookieStoreId?: string }) {
             )}
             filter={({ name }, lq) => name.toLowerCase().includes(lq)}
             handleSelect={(action) => {
-              context.resetState(true);
+              props.context.resetState(true);
               action.fn();
             }}
           />
@@ -1871,11 +1881,9 @@ function TabList(props: { cookieStoreId?: string }) {
 }
 
 function ContainerList(props: {
-  context?: Context;
+  context: Context;
   handleSelect?: (item: Container) => void;
 }) {
-  const context = props.context ?? useMainContext();
-
   const [containers] = createResource(async function getAllTabs() {
     const response = await sendMessage("getAllContainers", undefined);
     if (!Array.isArray(response)) {
@@ -1897,7 +1905,7 @@ function ContainerList(props: {
           background: false,
           cookieStoreId: container.cookieStoreId,
         });
-        context.resetState(true);
+        props.context.resetState(true);
       },
     },
     {
@@ -1905,8 +1913,8 @@ function ContainerList(props: {
       fn: function highlightLinksToOpenInContainer() {
         const container = selectedContainer();
         if (!container) return;
-        context.resetState(true);
-        context.highlightElementsBySelector("a", {
+        props.context.resetState(true);
+        props.context.highlightElementsBySelector("a", {
           interaction: {
             type: ElementInteractionMode.OpenInNewTab,
             cookieStoreId: container.cookieStoreId,
@@ -1927,13 +1935,13 @@ function ContainerList(props: {
   return (
     <Show when={containers()}>
       <Popup
-        context={context}
+        context={props.context}
         style={{
           visibility: !!selectedContainer() ? "hidden" : undefined,
         }}
       >
         <ListSearch
-          context={context}
+          context={props.context}
           items={containers()!}
           itemContent={(container) => (
             <div
@@ -1971,8 +1979,9 @@ function ContainerList(props: {
         />
       </Popup>
       <Show when={selectedContainer() && !shouldShowTabList()}>
-        <Popup>
+        <Popup context={props.context}>
           <ListSearch
+            context={props.context}
             items={containerActions}
             itemContent={(item) => (
               <span
@@ -1991,7 +2000,10 @@ function ContainerList(props: {
         </Popup>
       </Show>
       <Show when={selectedContainer() && shouldShowTabList()}>
-        <TabList cookieStoreId={selectedContainer()!.cookieStoreId} />
+        <TabList
+          context={props.context}
+          cookieStoreId={selectedContainer()!.cookieStoreId}
+        />
       </Show>
     </Show>
   );
@@ -1999,14 +2011,15 @@ function ContainerList(props: {
 
 function noop() {}
 
-function DebugList() {
+function DebugList(props: { context: Context }) {
   const debug: number[] = [];
   for (let i = 0; i < 5000; i++) {
     debug.push(i);
   }
   return (
-    <Popup>
+    <Popup context={props.context}>
       <ListSearch
+        context={props.context}
         items={debug}
         filter={(i, lq) => i.toString().includes(lq)}
         itemContent={(i) => (
@@ -2025,17 +2038,18 @@ function DebugList() {
 }
 
 function CommandPalette(props: {
+  context: Context;
   actions: Actions;
   getCurrentElement: () => HTMLElement | null;
   showDebugList: () => boolean;
+  showConfig: () => void;
 }) {
-  const context = useMainContext();
-
   const commands: {
     desc: string;
     fn: (event: KeyboardEvent | MouseEvent) => void;
     key?: string;
   }[] = [];
+
   for (const [key, action] of Object.entries(props.actions)) {
     commands.push({
       desc: action.desc,
@@ -2053,20 +2067,43 @@ function CommandPalette(props: {
 
   commands.push({
     desc: "Toggle debug info",
-    fn: context.toggleDebugInfo,
+    fn: props.context.toggleDebugInfo,
+  });
+
+  commands.push({
+    desc: "Configuration",
+    fn: props.showConfig,
+  });
+
+  commands.push({
+    desc: "Interact using custom selector",
+    fn: () => {
+      const popupRoot = props.context.popupRoot();
+      if (!popupRoot) return;
+      const dispose = render(
+        () => (
+          <InteractWithCustomSelector
+            context={props.context}
+            onClose={() => dispose()}
+          />
+        ),
+        popupRoot
+      );
+    },
   });
 
   function handleSelect(
     item: (typeof commands)[number],
     event: KeyboardEvent | MouseEvent
   ) {
-    context.resetState(true);
+    props.context.resetState(true);
     item.fn(event);
   }
 
   return (
-    <Popup>
+    <Popup context={props.context}>
       <ListSearch
+        context={props.context}
         items={commands}
         itemContent={(item) => (
           <div
@@ -2097,6 +2134,310 @@ function CommandPalette(props: {
   );
 }
 
+function isAnchorElement(x: unknown): x is HTMLAnchorElement {
+  return x instanceof HTMLAnchorElement;
+}
+
+function InteractionMenu(props: {
+  element: HTMLElement;
+  context: Context;
+  onSelect: () => void;
+  onClose: () => void;
+}) {
+  const interactions = [
+    {
+      desc: "Click",
+      fn: () => {
+        handleElementInteraction(props.element, {
+          type: ElementInteractionMode.Click,
+        });
+      },
+    },
+    {
+      desc: "Focus",
+      fn: () => {
+        handleElementInteraction(props.element, {
+          type: ElementInteractionMode.Focus,
+        });
+      },
+    },
+    {
+      desc: "Hover",
+      fn: () => {
+        handleElementInteraction(props.element, {
+          type: ElementInteractionMode.Hover,
+        });
+      },
+    },
+  ];
+
+  if (isAnchorElement(props.element)) {
+    interactions.push({
+      desc: "Open in new tab",
+      fn: () => {
+        handleElementInteraction(props.element, {
+          type: ElementInteractionMode.OpenInNewTab,
+        });
+      },
+    });
+  }
+
+  function handleSelect(item: (typeof interactions)[number]) {
+    item.fn();
+    props.context.resetState(true);
+    props.onSelect();
+  }
+
+  return (
+    <Popup context={props.context}>
+      <ListSearch
+        context={props.context}
+        items={interactions}
+        itemContent={(item) => (
+          <div class="qs-text-ellipsis" title={item.desc}>
+            {item.desc}
+          </div>
+        )}
+        filter={({ desc }, query) => desc.toLowerCase().includes(query)}
+        handleSelect={handleSelect}
+        onClose={props.onClose}
+      />
+    </Popup>
+  );
+}
+
+function CustomSelectorsMenu(props: {
+  context: Context;
+  onSelect: (selector: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Popup context={props.context}>
+      <input
+        class="qs-input"
+        style={{
+          background: "inherit",
+          color: "inherit",
+          "padding-block": rem(0.5),
+          "padding-inline": rem(1),
+          border: "1px solid transparent",
+          "border-radius": "0",
+          "border-bottom-left-radius": rem(0.25),
+          "border-bottom-right-radius": rem(0.25),
+          "z-index": 1,
+        }}
+        ref={(el) => setTimeout(() => el.focus())}
+        onKeyUp={(event) => {
+          const key = event.key;
+          if (key === "Enter") {
+            const target = event.target;
+            if (!(target instanceof HTMLInputElement)) return;
+            const selector = target.value;
+            target.value = "";
+            if (!selector) return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            props.onSelect(selector);
+          } else if (key === "Escape") {
+            props.onClose();
+          }
+        }}
+      />
+    </Popup>
+  );
+}
+
+function InteractWithCustomSelector(props: {
+  context: Context;
+  onClose: () => void;
+}) {
+  const [elements, setElements] = createSignal<
+    {
+      name: string;
+      element: HTMLElement;
+    }[]
+  >([]);
+  const [selectedElement, setSelectedElement] = createSignal<HTMLElement>();
+
+  let rectVisualizer: HTMLDivElement | undefined;
+
+  function setElementsFromSelector(selector: string) {
+    const elements = Array.from(
+      document.querySelectorAll<HTMLElement>(selector)
+    );
+    setElements(
+      elements.map((element) => {
+        const name = `<${element.tagName.toLowerCase()}> ${element.textContent?.slice(
+          0,
+          25
+        )}`;
+        return {
+          name,
+          element,
+        };
+      })
+    );
+  }
+
+  return (
+    <Show
+      when={selectedElement()}
+      fallback={
+        <Show
+          when={elements().length > 0}
+          fallback={
+            <CustomSelectorsMenu
+              context={props.context}
+              onSelect={(selector) => {
+                setElementsFromSelector(selector);
+              }}
+              onClose={props.onClose}
+            />
+          }
+        >
+          <Popup context={props.context}>
+            <ListSearch
+              context={props.context}
+              items={elements()}
+              itemContent={(item) => (
+                <div class="qs-text-ellipsis" title={item.name}>
+                  {item.name}
+                </div>
+              )}
+              filter={({ name }, query) => name.toLowerCase().includes(query)}
+              handleSelect={({ element }) => {
+                setSelectedElement(element);
+              }}
+              onSelectionChange={({ element }) => {
+                if (!rectVisualizer) return;
+                element.scrollIntoView();
+                const rect = element.getBoundingClientRect();
+                rectVisualizer.style.width = `${rect.width || 20}px`;
+                rectVisualizer.style.height = `${rect.height || 20}px`;
+                rectVisualizer.style.translate = `${rect.x}px ${rect.y}px`;
+              }}
+              onClose={props.onClose}
+            />
+          </Popup>
+          <div
+            ref={rectVisualizer}
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              background: "rgba(169, 69, 69, 0.25)",
+              translate: "0px 0px",
+            }}
+          />
+        </Show>
+      }
+    >
+      <Popup context={props.context}>
+        <InteractionMenu
+          context={props.context}
+          element={selectedElement()!}
+          onSelect={props.onClose}
+          onClose={() => setSelectedElement(undefined)}
+        />
+      </Popup>
+    </Show>
+  );
+}
+
+type ConfigObject = {
+  interactiveElementsSelector: string;
+};
+
+function Config(props: { context: Context; config: ConfigObject }) {
+  const [interativeSelector, setInteractiveSelector] = createSignal(
+    props.config.interactiveElementsSelector
+  );
+  createEffect(() => {
+    props.config.interactiveElementsSelector = interativeSelector();
+  });
+
+  let closeButton: HTMLButtonElement | undefined;
+  onMount(() => {
+    closeButton?.focus();
+  });
+
+  return (
+    <Popup
+      context={props.context}
+      style={{
+        padding: "1rem",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          "align-items": "center",
+          "justify-content": "space-between",
+          gap: "1rem",
+          "margin-bottom": "1rem",
+        }}
+      >
+        <div
+          style={{
+            "font-weight": "bold",
+          }}
+        >
+          Configuration
+        </div>
+        <button
+          class="qs-btn qs-outline-btn"
+          style={{
+            display: "flex",
+            padding: rem(0.25),
+          }}
+          onClick={() => props.context.resetState(true)}
+          ref={closeButton}
+        >
+          <CloseIcon
+            style={{
+              width: rem(1.25),
+              height: rem(1.25),
+              color: Colors["cb-light-90"],
+            }}
+          />
+        </button>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          "flex-direction": "column",
+          gap: "0.5rem",
+        }}
+      >
+        <label for="int-el-sel">Interactive elements selector:</label>
+        <input
+          id="int-el-sel"
+          type="text"
+          value={interativeSelector()}
+          onInput={(event) => {
+            setInteractiveSelector(event.target.value);
+          }}
+        />
+        <button
+          class="qs-btn qs-outline-btn"
+          style={{
+            "align-self": "start",
+            color: Colors["cb-light-90"],
+            padding: `${rem(0.25)} ${rem(0.35)}`,
+          }}
+          onClick={() =>
+            setInteractiveSelector(DefaultInteractiveElementsSelector)
+          }
+        >
+          Reset to default
+        </button>
+      </div>
+    </Popup>
+  );
+}
+
+const DefaultInteractiveElementsSelector = `:is(a,button,input,label,[role^="menuitem"],[role="button"],[role="treeitem"],[role="radio"],[role="tab"],select):not(:disabled,[aria-disabled="true"],details)`;
+
 function Root() {
   let highlightsContainer: HTMLDivElement | undefined;
   let visualModeContainer: HTMLDivElement | undefined;
@@ -2117,6 +2458,7 @@ function Root() {
       waitingForInput: boolean;
       pos: "before" | "after";
     };
+    popupRoot: HTMLDivElement | undefined;
   } = {
     highlightInput: "",
     highlightInteractionMode: { type: ElementInteractionMode.Click },
@@ -2125,6 +2467,11 @@ function Root() {
       waitingForInput: false,
       pos: "before",
     },
+    popupRoot: undefined,
+  };
+
+  const config: ConfigObject = {
+    interactiveElementsSelector: DefaultInteractiveElementsSelector,
   };
 
   const [currentMode, setCurrentMode] = createSignal(Mode.Normal);
@@ -2210,7 +2557,9 @@ function Root() {
       handleInstantlyIfOnlyOne = false,
       interaction,
     } = options;
-    state.highlightInteractionMode = interaction;
+    if (interaction) {
+      state.highlightInteractionMode = interaction;
+    }
     clearAllHighlights();
     const elements = document.querySelectorAll<HTMLElement>(selector);
     if (!elements || elements.length === 0) {
@@ -2292,16 +2641,17 @@ function Root() {
     setCurrentMode(Mode.Highlight);
   }
 
-  function handleHighlightInteraction(id: string) {
+  function getHighlightById(id: string) {
     const highlightElement = idToHighlightElementMap.get(id);
     if (!highlightElement) return;
 
     const highlight = elementToHighlightMap.get(highlightElement);
-    if (!highlight) return;
+    return highlight;
+  }
 
-    setCurrentMode(Mode.Normal);
-    state.highlightInput = "";
-    clearAllHighlights();
+  function handleHighlightInteraction(id: string) {
+    const highlight = getHighlightById(id);
+    if (!highlight) return;
 
     if (highlight.type === "element") {
       handleElementInteraction(
@@ -2324,7 +2674,12 @@ function Root() {
     selection.setPosition(word.node, word.start);
   }
 
-  function updateHighlightInput(key: string, event: KeyboardEvent) {
+  function updateHighlightInput(
+    key: string,
+    event: KeyboardEvent,
+    handleInteraction: (id: string) => void = handleHighlightInteraction,
+    handleNoResultFound?: () => void
+  ) {
     state.highlightInput += key;
     const ids = Array.from(idToHighlightElementMap.keys());
     const highlightInput = state.highlightInput;
@@ -2343,11 +2698,15 @@ function Root() {
     if (filtered.length === 1 && firstResult === highlightInput) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      handleHighlightInteraction(firstResult);
+      handleInteraction(firstResult);
+      setCurrentMode(Mode.Normal);
+      state.highlightInput = "";
+      clearAllHighlights();
     } else if (filtered.length === 0) {
       setCurrentMode(Mode.Normal);
       state.highlightInput = "";
       clearAllHighlights();
+      handleNoResultFound?.();
     }
   }
 
@@ -2488,11 +2847,9 @@ function Root() {
     elementToScroll.scrollTop = elementToScroll.scrollHeight;
   }
 
-  const InteractiveElementsSelector = `:is(a,button,input,label,[role^="menuitem"],[role="button"],[role="treeitem"],[role="radio"],[role="tab"],select):not(:disabled):not([aria-disabled="true"],details)`;
-
   function highlightInteractiveElements() {
     if (currentMode() !== Mode.Highlight) {
-      highlightElementsBySelector(InteractiveElementsSelector, {
+      highlightElementsBySelector(config.interactiveElementsSelector, {
         interaction: { type: ElementInteractionMode.Click },
       });
     }
@@ -2510,7 +2867,7 @@ function Root() {
 
   function highlightInteractiveElementsToHover() {
     if (currentMode() !== Mode.Highlight) {
-      highlightElementsBySelector(InteractiveElementsSelector, {
+      highlightElementsBySelector(config.interactiveElementsSelector, {
         interaction: { type: ElementInteractionMode.Hover },
       });
     }
@@ -2675,7 +3032,7 @@ function Root() {
     sendMessage("search", selectionText);
   }
 
-  const mainContextValue = createMemo(() => ({
+  const context: Context = {
     shouldShowDebugInfo,
     toggleDebugInfo: () => setShouldShowDebugInfo((b) => !b),
     hideAllPopups,
@@ -2683,7 +3040,86 @@ function Root() {
     registerKeydownListener,
     registerKeyupListener,
     highlightElementsBySelector,
-  }));
+    popupRoot: () => state.popupRoot,
+  };
+
+  function highlightElementsUsingCustomSelector() {
+    if (!state.popupRoot) return;
+    const dispose = render(
+      () => (
+        <CustomSelectorsMenu
+          context={context}
+          onSelect={(selector) => {
+            highlightElementsBySelector(selector, {
+              interaction: undefined,
+            });
+            const removeListener = registerKeydownListener((event) => {
+              const { key, ctrlKey, shiftKey, altKey, metaKey } = event;
+              if (
+                key === "Control" ||
+                key === "Shift" ||
+                key === "Alt" ||
+                key === "Meta"
+              ) {
+                return true;
+              }
+
+              const mode = currentMode();
+              if (
+                !ctrlKey &&
+                !shiftKey &&
+                !altKey &&
+                !metaKey &&
+                mode === Mode.Highlight &&
+                key !== "Escape"
+              ) {
+                event.stopImmediatePropagation();
+                event.stopPropagation();
+                updateHighlightInput(
+                  key,
+                  event,
+                  (id) => {
+                    const highlight = getHighlightById(id);
+                    if (
+                      !state.popupRoot ||
+                      !highlight ||
+                      highlight.type === "word"
+                    ) {
+                      removeListener();
+                      return;
+                    }
+                    const dispose = render(() => {
+                      const cleanup = () => {
+                        removeListener();
+                        dispose();
+                      };
+                      return (
+                        <InteractionMenu
+                          context={context}
+                          element={highlight.element}
+                          onSelect={cleanup}
+                          onClose={cleanup}
+                        />
+                      );
+                    }, state.popupRoot);
+                  },
+                  () => {
+                    removeListener();
+                  }
+                );
+                return true;
+              }
+
+              return false;
+            });
+            dispose();
+          }}
+          onClose={() => dispose()}
+        />
+      ),
+      state.popupRoot
+    );
+  }
 
   const actionsMap: Record<Mode, Actions> = {
     [Mode.Normal]: {
@@ -2701,10 +3137,6 @@ function Root() {
       "g g": { desc: "Scroll to top", fn: scrollToTop },
       "S-g": { desc: "Scroll to bottom", fn: scrollToBottom },
       i: { desc: "Highlight editable elements", fn: highlightAllInputs },
-      "l f": {
-        desc: "List all links & buttons",
-        fn: () => setShowListAndButtonList((show) => !show),
-      },
       "l v": {
         desc: "List all media",
         fn: () => toggleMediaList((show) => !show),
@@ -2724,6 +3156,14 @@ function Root() {
       "g f": {
         desc: "Highlight links to open in new tab",
         fn: highlightLinksToOpenInNewTab,
+      },
+      "l f": {
+        desc: "List all links & buttons",
+        fn: () => setShowListAndButtonList((show) => !show),
+      },
+      "s f": {
+        desc: "Highlight elements by selector",
+        fn: highlightElementsUsingCustomSelector,
       },
       "g h": {
         desc: "Highlight interactive elements to hover",
@@ -2987,13 +3427,11 @@ function Root() {
     actionsMap[Mode.Normal]["w c n"] = {
       desc: "New tab in container",
       fn: () => {
-        const _el = createElement("div");
-        if (!highlightsContainer) return;
-        highlightsContainer.parentElement!.appendChild(_el);
+        if (!state.popupRoot) return;
         const dispose = render(
           () => (
             <ContainerList
-              context={mainContextValue()}
+              context={context}
               handleSelect={(container) => {
                 dispose();
                 sendMessage("openNewTab", {
@@ -3003,20 +3441,18 @@ function Root() {
               }}
             />
           ),
-          _el
+          state.popupRoot
         );
       },
     };
     actionsMap[Mode.Normal]["w c f"] = {
       desc: "Highlight links to open in container",
       fn: () => {
-        const _el = createElement("div");
-        if (!highlightsContainer) return;
-        highlightsContainer.parentElement!.appendChild(_el);
+        if (!state.popupRoot) return;
         const dispose = render(
           () => (
             <ContainerList
-              context={mainContextValue()}
+              context={context}
               handleSelect={(container) => {
                 dispose();
                 highlightElementsBySelector("a", {
@@ -3028,7 +3464,7 @@ function Root() {
               }}
             />
           ),
-          _el
+          state.popupRoot
         );
       },
     };
@@ -3095,6 +3531,7 @@ function Root() {
     keydownListeners.add(listener);
     return () => {
       keydownListeners.delete(listener);
+      info("cleaned up keydown listener");
     };
   }
 
@@ -3350,7 +3787,8 @@ function Root() {
   });
 
   return (
-    <mainContext.Provider value={mainContextValue()}>
+    <>
+      <div ref={state.popupRoot} />
       <div
         ref={highlightsContainer}
         style={{
@@ -3397,6 +3835,7 @@ function Root() {
       </Show>
       <Show when={shouldShowActionHelp()}>
         <ActionsHelp
+          context={context}
           mode={currentMode}
           keyInput={keyInput()}
           actionsHelpByMode={actionsHelpByMode()}
@@ -3404,25 +3843,26 @@ function Root() {
       </Show>
       <Show when={keyInput().length > 0 && !shouldShowActionHelp()}>
         <ActionSuggestion
+          context={context}
           keyInput={keyInput()}
           actionKeys={actionKeyCombinations[currentMode()]}
           actions={actionsMap[currentMode()]}
         />
       </Show>
       <Show when={shouldShowLinkAndButtonList()}>
-        <SearchLinksAndButtons />
+        <SearchLinksAndButtons context={context} />
       </Show>
       <Show when={shouldShowMediaList()}>
-        <MediaList />
+        <MediaList context={context} />
       </Show>
       <Show when={shouldShowTabList()}>
-        <TabList />
+        <TabList context={context} />
       </Show>
       <Show when={shouldShowDebugList()}>
-        <DebugList />
+        <DebugList context={context} />
       </Show>
       <Show when={shouldShowImageList()}>
-        <ImageList />
+        <ImageList context={context} />
       </Show>
       <Show when={isPassthrough()}>
         <div
@@ -3437,13 +3877,18 @@ function Root() {
       </Show>
       <Show when={shouldShowCommandPalette()}>
         <CommandPalette
+          context={context}
           actions={actionsMap[currentMode()]}
           getCurrentElement={getCurrentElement}
           showDebugList={() => toggleDebugList(true)}
+          showConfig={() => toggleConfig(true)}
         />
       </Show>
+      <Show when={shouldShowConfig()}>
+        <Config context={context} config={config} />
+      </Show>
       <Show when={shouldShowContainerList()}>
-        <ContainerList />
+        <ContainerList context={context} />
       </Show>
       <Show when={currentMode() === Mode.VisualCaret}>
         <div
@@ -3485,8 +3930,13 @@ function Root() {
 .qs-list-item:hover, .qs-list-item.active { --is-hovered: 1; background: ${
         Colors["cb-dark-60"]
       }; }
-.qs-outline-btn { background: transparent; }
-.qs-outline-btn:hover { background: ${Colors["cb-dark-60"]}; }
+.qs-btn { margin: 0; padding: 0; border-color: transparent; font-family: inherit; font-size: inherit; text-align: left; }
+.qs-outline-btn { background: transparent; border: 2px solid ${
+        Colors["cb-dark-50"]
+      }; }
+.qs-outline-btn:hover, .qs-outline-btn:focus { background: ${
+        Colors["cb-dark-60"]
+      }; }
 .qs-outline-btn:focus-visible { outline: 2px solid cornflowerblue; }
 .qs-toggle {
   display: grid;
@@ -3513,7 +3963,7 @@ function Root() {
   border-width: 0;
 }
 `}</style>
-    </mainContext.Provider>
+    </>
   );
 }
 
