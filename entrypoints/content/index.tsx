@@ -36,6 +36,7 @@ import {
 import {
   Blocklist,
   ConfigV1,
+  DefaultInteractiveElementsSelector,
   disabledGlobally,
   storedBlocklist,
   storedConfig,
@@ -2468,8 +2469,6 @@ function Config(props: { context: Context }) {
     </Show>
   );
 }
-
-const DefaultInteractiveElementsSelector = `:is(a,button,input,label,[role^="menuitem"],[role="button"],[role="treeitem"],[role="radio"],[role="tab"],select):not(:disabled,[aria-disabled="true"],details)`;
 
 function Root() {
   let highlightsContainer: HTMLDivElement | undefined;

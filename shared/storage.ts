@@ -21,9 +21,11 @@ export type ConfigV1 = {
   interactiveElementsSelector: string;
 };
 
+export const DefaultInteractiveElementsSelector = `:is(a,button,input,label,[role^="menuitem"],[role="button"],[role="treeitem"],[role="radio"],[role="tab"],select):not(:disabled,[aria-disabled="true"],details)`;
+
 export const storedConfig = storage.defineItem<ConfigV1>("local:config", {
   fallback: {
-    interactiveElementsSelector: "",
+    interactiveElementsSelector: DefaultInteractiveElementsSelector,
   },
   version: 1,
 });
