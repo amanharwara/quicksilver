@@ -2505,6 +2505,9 @@ function Root() {
   let config: ConfigV1 = {
     interactiveElementsSelector: DefaultInteractiveElementsSelector,
   };
+  storedConfig.getValue().then((cfg) => {
+    config = cfg;
+  });
   storedConfig.watch((newConfig) => {
     config = newConfig;
   });
