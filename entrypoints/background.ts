@@ -24,22 +24,32 @@ onMessage("getAllContainers", async () => {
 });
 
 async function openNewTab(options: Parameters<ProtocolMap["openNewTab"]>[0]) {
-  const { url, background, position = "after" } = options;
+  const { url, background, position = "after", window } = options;
   const [activeTab] = await browser.tabs.query({
     active: true,
     lastFocusedWindow: true,
   });
+  const containerOption = import.meta.env.FIREFOX
+    ? {
+        // @ts-ignore firefox-only property which is not included in chrome types
+        cookieStoreId: options.cookieStoreId || activeTab.cookieStoreId,
+      }
+    : {};
+  if (window !== "current") {
+    await browser.windows.create({
+      url,
+      focused: true,
+      incognito: window === "private",
+      ...containerOption,
+    });
+    return;
+  }
   const activeTabIndex = activeTab.index;
   return browser.tabs.create({
     active: !background,
     url: url,
     index: position === "after" ? activeTabIndex + 1 : activeTabIndex - 1,
-    ...(import.meta.env.FIREFOX
-      ? {
-          // @ts-ignore firefox-only property which is not included in chrome types
-          cookieStoreId: options.cookieStoreId || activeTab.cookieStoreId,
-        }
-      : {}),
+    ...containerOption,
   });
 }
 
@@ -113,7 +123,7 @@ onMessage("search", async (message) => {
   });
   await browser.search.query({
     text,
-    ...(isNumber(newTabInBackground.id)
+    ...(isNumber(newTabInBackground?.id)
       ? { tabId: newTabInBackground.id }
       : {
           disposition: "NEW_TAB",

@@ -67,6 +67,7 @@ type ElementInteraction =
     }
   | {
       type: ElementInteractionMode.OpenInNewTab;
+      window?: "current" | "new" | "private";
       cookieStoreId?: string;
     }
   | {
@@ -396,6 +397,7 @@ function handleElementInteraction(
         url: href,
         background: true,
         cookieStoreId: mode.cookieStoreId,
+        window: mode.window,
       });
       break;
     }
@@ -2189,14 +2191,34 @@ function InteractionMenu(props: {
   ];
 
   if (isAnchorElement(props.element)) {
-    interactions.push({
-      desc: "Open in new tab",
-      fn: () => {
-        handleElementInteraction(props.element, {
-          type: ElementInteractionMode.OpenInNewTab,
-        });
+    interactions.push(
+      {
+        desc: "Open in new tab",
+        fn: () => {
+          handleElementInteraction(props.element, {
+            type: ElementInteractionMode.OpenInNewTab,
+          });
+        },
       },
-    });
+      {
+        desc: "Open in new window",
+        fn: () => {
+          handleElementInteraction(props.element, {
+            type: ElementInteractionMode.OpenInNewTab,
+            window: "new",
+          });
+        },
+      },
+      {
+        desc: "Open in private window",
+        fn: () => {
+          handleElementInteraction(props.element, {
+            type: ElementInteractionMode.OpenInNewTab,
+            window: "private",
+          });
+        },
+      }
+    );
   }
 
   function handleSelect(item: (typeof interactions)[number]) {

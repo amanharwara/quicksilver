@@ -20,6 +20,7 @@ export interface ProtocolMap {
     url?: string;
     background: boolean;
     position?: "before" | "after";
+    window?: "current" | "new" | "private";
     cookieStoreId?: string;
   }): void;
   activateTab(id: Tab["id"]): void;
