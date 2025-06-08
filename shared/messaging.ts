@@ -28,6 +28,8 @@ export interface ProtocolMap {
   closeTab(id: Tab["id"]): void;
   search(text: string): void;
   moveTabNextToCurrentTab(id: Tab["id"]): void;
+  moveTabToNewWindow(id: Tab["id"]): void;
+  reopenTabInPrivateWindow(id: Tab["id"]): void;
 }
 
 export const { sendMessage, onMessage } =

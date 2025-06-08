@@ -24,7 +24,7 @@ onMessage("getAllContainers", async () => {
 });
 
 async function openNewTab(options: Parameters<ProtocolMap["openNewTab"]>[0]) {
-  const { url, background, position = "after", window } = options;
+  const { url, background, position = "after", window = "current" } = options;
   const [activeTab] = await browser.tabs.query({
     active: true,
     lastFocusedWindow: true,
@@ -143,6 +143,30 @@ onMessage("moveTabNextToCurrentTab", async (message) => {
   const activeTabIndex = activeTab.index;
   await browser.tabs.move(id, {
     index: activeTabIndex + 1,
+  });
+});
+
+onMessage("moveTabToNewWindow", async (message) => {
+  const id = message.data;
+  if (!isNumber(id)) {
+    return;
+  }
+  await browser.windows.create({
+    focused: true,
+    tabId: id,
+  });
+});
+
+onMessage("reopenTabInPrivateWindow", async (message) => {
+  const id = message.data;
+  if (!isNumber(id)) {
+    return;
+  }
+  const tab = await browser.tabs.get(id);
+  await browser.windows.create({
+    focused: true,
+    incognito: true,
+    url: tab.url,
   });
 });
 

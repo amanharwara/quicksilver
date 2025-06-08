@@ -1824,6 +1824,22 @@ function TabList(props: { context: Context; cookieStoreId?: string }) {
         sendMessage("moveTabNextToCurrentTab", tab.id);
       },
     },
+    {
+      name: "Move tab to new window",
+      fn: function moveTabToNewWindow() {
+        const tab = selectedTab();
+        if (!tab) return;
+        sendMessage("moveTabToNewWindow", tab.id);
+      },
+    },
+    {
+      name: "Re-open in private window",
+      fn: function reopenInPrivateWindow() {
+        const tab = selectedTab();
+        if (!tab) return;
+        sendMessage("reopenTabInPrivateWindow", tab.id);
+      },
+    },
   ];
 
   return (
