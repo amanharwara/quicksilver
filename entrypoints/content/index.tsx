@@ -41,6 +41,12 @@ import {
   storedBlocklist,
   storedConfig,
 } from "../../shared/storage";
+import {
+  isAnchorElement,
+  isEscapeKey,
+  isModifierKey,
+  rem,
+} from "../../shared/utils";
 
 enum ElementInteractionMode {
   Click = 0,
@@ -97,10 +103,6 @@ const letters = Array(26)
     let i = index + 97;
     return String.fromCharCode(i);
   });
-
-function rem(n: number) {
-  return `${n * 16}px`;
-}
 
 export function* twoCharIDGenerator() {
   for (const letter of letters) {
@@ -2145,10 +2147,6 @@ function CommandPalette(props: {
   );
 }
 
-function isAnchorElement(x: unknown): x is HTMLAnchorElement {
-  return x instanceof HTMLAnchorElement;
-}
-
 function InteractionMenu(props: {
   element: HTMLElement;
   context: Context;
@@ -2257,7 +2255,7 @@ function CustomSelectorsMenu(props: {
             event.preventDefault();
             event.stopImmediatePropagation();
             props.onSelect(selector);
-          } else if (key === "Escape") {
+          } else if (isEscapeKey(key)) {
             props.onClose();
           }
         }}
@@ -3109,13 +3107,13 @@ function Root() {
             });
             const removeListener = registerKeydownListener((event) => {
               const { key, ctrlKey, shiftKey, altKey, metaKey } = event;
-              if (
-                key === "Control" ||
-                key === "Shift" ||
-                key === "Alt" ||
-                key === "Meta"
-              ) {
+              if (isModifierKey(key)) {
                 return true;
+              }
+
+              if (isEscapeKey(key)) {
+                removeListener();
+                return false;
               }
 
               const mode = currentMode();
@@ -3124,8 +3122,7 @@ function Root() {
                 !shiftKey &&
                 !altKey &&
                 !metaKey &&
-                mode === Mode.Highlight &&
-                key !== "Escape"
+                mode === Mode.Highlight
               ) {
                 event.stopImmediatePropagation();
                 event.stopPropagation();
@@ -3175,6 +3172,66 @@ function Root() {
     );
   }
 
+  function highlightElementsForInteractionMenu() {
+    highlightElementsBySelector(config.interactiveElementsSelector, {
+      interaction: undefined,
+    });
+    const removeListener = registerKeydownListener((event) => {
+      const { key, ctrlKey, shiftKey, altKey, metaKey } = event;
+      if (isModifierKey(key)) {
+        return true;
+      }
+
+      if (isEscapeKey(key)) {
+        removeListener();
+        return false;
+      }
+
+      const mode = currentMode();
+      if (
+        !ctrlKey &&
+        !shiftKey &&
+        !altKey &&
+        !metaKey &&
+        mode === Mode.Highlight
+      ) {
+        event.stopImmediatePropagation();
+        event.stopPropagation();
+        updateHighlightInput(
+          key,
+          event,
+          (id) => {
+            const highlight = getHighlightById(id);
+            if (!state.popupRoot || !highlight || highlight.type === "word") {
+              removeListener();
+              return;
+            }
+            const dispose = render(() => {
+              const cleanup = () => {
+                removeListener();
+                dispose();
+              };
+              return (
+                <InteractionMenu
+                  context={context}
+                  element={highlight.element}
+                  onSelect={cleanup}
+                  onClose={cleanup}
+                />
+              );
+            }, state.popupRoot);
+          },
+          () => {
+            removeListener();
+          }
+        );
+        return true;
+      }
+
+      return false;
+    });
+  }
+
   const actionsMap: Record<Mode, Actions> = {
     [Mode.Normal]: {
       "S-?": {
@@ -3218,6 +3275,10 @@ function Root() {
       "s f": {
         desc: "Highlight elements by selector",
         fn: highlightElementsUsingCustomSelector,
+      },
+      "i f": {
+        desc: "Highlight and interact",
+        fn: highlightElementsForInteractionMenu,
       },
       "g h": {
         desc: "Highlight interactive elements to hover",
@@ -3662,6 +3723,8 @@ function Root() {
 
     if (keydownListeners.size > 0) {
       const listeners = Array.from(keydownListeners);
+      const numberOfListeners = listeners.length;
+      info(`Going through ${numberOfListeners} keydown listeners`);
       for (let i = listeners.length - 1; i >= 0; i--) {
         const listener = listeners[i];
         if (listener(event)) {
@@ -3673,12 +3736,7 @@ function Root() {
     const { key, ctrlKey, shiftKey, altKey, metaKey, target } = event;
     info("keydown", event);
 
-    if (
-      key === "Control" ||
-      key === "Shift" ||
-      key === "Alt" ||
-      key === "Meta"
-    ) {
+    if (isModifierKey(key)) {
       return;
     }
 
@@ -3694,7 +3752,7 @@ function Root() {
 
     const mode = currentMode();
 
-    if (key === "Escape" && !actionUniqueKeys[mode].has("escape")) {
+    if (isEscapeKey(key) && !actionUniqueKeys[mode].has("escape")) {
       if (mode !== Mode.Normal || keyInput().length > 0) {
         event.stopImmediatePropagation();
         event.stopPropagation();
@@ -3710,7 +3768,7 @@ function Root() {
       !altKey &&
       !metaKey &&
       mode === Mode.Highlight &&
-      key !== "Escape"
+      !isEscapeKey(key)
     ) {
       event.stopImmediatePropagation();
       event.stopPropagation();
@@ -3718,7 +3776,7 @@ function Root() {
       return;
     }
 
-    if (state.jumpToCharacter.waitingForInput && key !== "Escape") {
+    if (state.jumpToCharacter.waitingForInput && !isEscapeKey(key)) {
       event.stopImmediatePropagation();
       event.stopPropagation();
       setCharacterAndJump(key);
@@ -3769,7 +3827,9 @@ function Root() {
 
     if (keyupListeners.size > 0) {
       const listeners = Array.from(keyupListeners);
-      for (let i = listeners.length - 1; i >= 0; i--) {
+      const numberOfListeners = listeners.length;
+      info(`Going through ${numberOfListeners} keyup listeners`);
+      for (let i = numberOfListeners - 1; i >= 0; i--) {
         const listener = listeners[i];
         if (listener(event)) {
           return;
