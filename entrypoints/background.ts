@@ -29,17 +29,23 @@ async function openNewTab(options: Parameters<ProtocolMap["openNewTab"]>[0]) {
     active: true,
     lastFocusedWindow: true,
   });
+
   const containerOption = import.meta.env.FIREFOX
     ? {
         // @ts-ignore firefox-only property which is not included in chrome types
         cookieStoreId: options.cookieStoreId || activeTab.cookieStoreId,
       }
     : {};
-  if (window !== "current") {
+  if (window === "private") {
+    await browser.windows.create({
+      incognito: true,
+      url,
+    });
+    return;
+  } else if (window === "new") {
     await browser.windows.create({
       url,
       focused: true,
-      incognito: window === "private",
       ...containerOption,
     });
     return;

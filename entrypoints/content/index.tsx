@@ -915,15 +915,37 @@ function SearchLinksAndButtons(props: { context: Context }) {
   const selectedItemActions = createMemo(() => {
     const actions = [openAction, focusAction];
     if (selectedItem()?.href) {
-      actions.push({
-        desc: "Open in new tab",
-        fn: (item: ClickableItem) => {
-          const element = item.element;
-          handleElementInteraction(element, {
-            type: ElementInteractionMode.OpenInNewTab,
-          });
+      actions.push(
+        {
+          desc: "Open in new tab",
+          fn: (item: ClickableItem) => {
+            const element = item.element;
+            handleElementInteraction(element, {
+              type: ElementInteractionMode.OpenInNewTab,
+            });
+          },
         },
-      });
+        {
+          desc: "Open in new window",
+          fn: (item: ClickableItem) => {
+            const element = item.element;
+            handleElementInteraction(element, {
+              type: ElementInteractionMode.OpenInNewTab,
+              window: "new",
+            });
+          },
+        },
+        {
+          desc: "Open in private window",
+          fn: (item: ClickableItem) => {
+            const element = item.element;
+            handleElementInteraction(element, {
+              type: ElementInteractionMode.OpenInNewTab,
+              window: "private",
+            });
+          },
+        }
+      );
       if (import.meta.env.BROWSER === "firefox") {
         actions.push({
           desc: "Open in container",
