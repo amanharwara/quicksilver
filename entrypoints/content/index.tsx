@@ -3155,83 +3155,6 @@ function Root() {
     popupRoot: () => state.popupRoot,
   };
 
-  function highlightElementsUsingCustomSelector() {
-    if (!state.popupRoot) return;
-    const dispose = render(
-      () => (
-        <CustomSelectorsMenu
-          context={context}
-          onSelect={(selector) => {
-            highlightElementsBySelector(selector, {
-              interaction: undefined,
-            });
-            const removeListener = registerKeydownListener((event) => {
-              const { key, ctrlKey, shiftKey, altKey, metaKey } = event;
-              if (isModifierKey(key)) {
-                return true;
-              }
-
-              if (isEscapeKey(key)) {
-                removeListener();
-                return false;
-              }
-
-              const mode = currentMode();
-              if (
-                !ctrlKey &&
-                !shiftKey &&
-                !altKey &&
-                !metaKey &&
-                mode === Mode.Highlight
-              ) {
-                event.stopImmediatePropagation();
-                event.stopPropagation();
-                updateHighlightInput(
-                  key,
-                  event,
-                  (id) => {
-                    const highlight = getHighlightById(id);
-                    if (
-                      !state.popupRoot ||
-                      !highlight ||
-                      highlight.type === "word"
-                    ) {
-                      removeListener();
-                      return;
-                    }
-                    const dispose = render(() => {
-                      const cleanup = () => {
-                        removeListener();
-                        dispose();
-                      };
-                      return (
-                        <InteractionMenu
-                          context={context}
-                          element={highlight.element}
-                          onSelect={cleanup}
-                          onClose={cleanup}
-                        />
-                      );
-                    }, state.popupRoot);
-                  },
-                  () => {
-                    removeListener();
-                  }
-                );
-                return true;
-              }
-
-              return false;
-            });
-            dispose();
-          }}
-          onClose={() => dispose()}
-        />
-      ),
-      state.popupRoot
-    );
-  }
-
   function highlightElementsForInteractionMenu() {
     highlightElementsBySelector(config.interactiveElementsSelector, {
       interaction: undefined,
@@ -3333,10 +3256,6 @@ function Root() {
         fn: () => setShowListAndButtonList((show) => !show),
       },
       "s f": {
-        desc: "Highlight elements by selector",
-        fn: highlightElementsUsingCustomSelector,
-      },
-      "i f": {
         desc: "Highlight and interact",
         fn: highlightElementsForInteractionMenu,
       },
