@@ -47,10 +47,14 @@ enum ElementInteractionMode {
   Focus = 1,
   OpenInNewTab = 2,
   Hover = 3,
+  DoubleClick = 4,
 }
 type ElementInteraction =
   | {
       type: ElementInteractionMode.Click;
+    }
+  | {
+      type: ElementInteractionMode.DoubleClick;
     }
   | {
       type: ElementInteractionMode.Focus;
@@ -372,6 +376,10 @@ function handleElementInteraction(
 ) {
   switch (mode.type) {
     case ElementInteractionMode.Click:
+      element.click();
+      break;
+    case ElementInteractionMode.DoubleClick:
+      element.click();
       element.click();
       break;
     case ElementInteractionMode.Focus:
@@ -2157,6 +2165,14 @@ function InteractionMenu(props: {
       },
     },
     {
+      desc: "Double-click",
+      fn: () => {
+        handleElementInteraction(props.element, {
+          type: ElementInteractionMode.DoubleClick,
+        });
+      },
+    },
+    {
       desc: "Focus",
       fn: () => {
         handleElementInteraction(props.element, {
@@ -3188,7 +3204,7 @@ function Root() {
         fn: () => toggleImageList((show) => !show),
       },
       f: {
-        desc: "Highlight links, buttons and inputs",
+        desc: "Highlight interactive elements",
         fn: highlightInteractiveElements,
       },
       "g f": {
