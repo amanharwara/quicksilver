@@ -1723,6 +1723,14 @@ function ImageList(props: { context: Context }) {
       },
     },
     {
+      name: "Click",
+      fn: function openTab() {
+        const image = selectedImage();
+        if (!image) return;
+        image.click();
+      },
+    },
+    {
       name: "Copy link",
       fn: function openTab() {
         const image = selectedImage();
