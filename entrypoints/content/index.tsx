@@ -1666,6 +1666,9 @@ function MediaList(props: { context: Context }) {
 
   const [selectedMedia, setSelectedMedia] =
     createSignal<HTMLMediaElement | null>(null);
+  if (mediaElements.length === 1) {
+    setSelectedMedia(mediaElements[0])
+  }
 
   return (
     <>
