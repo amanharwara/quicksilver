@@ -1667,7 +1667,7 @@ function MediaList(props: { context: Context }) {
   const [selectedMedia, setSelectedMedia] =
     createSignal<HTMLMediaElement | null>(null);
   if (mediaElements.length === 1) {
-    setSelectedMedia(mediaElements[0])
+    setSelectedMedia(mediaElements[0]);
   }
 
   return (
@@ -2776,6 +2776,10 @@ function Root() {
     const highlight = getHighlightById(id);
     if (!highlight) return;
 
+    setCurrentMode(Mode.Normal);
+    state.highlightInput = "";
+    clearAllHighlights();
+
     if (highlight.type === "element") {
       handleElementInteraction(
         highlight.element,
@@ -2822,9 +2826,6 @@ function Root() {
       event.preventDefault();
       event.stopImmediatePropagation();
       handleInteraction(firstResult);
-      setCurrentMode(Mode.Normal);
-      state.highlightInput = "";
-      clearAllHighlights();
     } else if (filtered.length === 0) {
       setCurrentMode(Mode.Normal);
       state.highlightInput = "";
@@ -3196,6 +3197,9 @@ function Root() {
           event,
           (id) => {
             const highlight = getHighlightById(id);
+            setCurrentMode(Mode.Normal);
+            state.highlightInput = "";
+            clearAllHighlights();
             if (!state.popupRoot || !highlight || highlight.type === "word") {
               removeListener();
               return;
@@ -3741,6 +3745,7 @@ function Root() {
     }
 
     const mode = currentMode();
+    console.log(mode);
 
     if (isEscapeKey(key) && !actionUniqueKeys[mode].has("escape")) {
       if (mode !== Mode.Normal || keyInput().length > 0) {
