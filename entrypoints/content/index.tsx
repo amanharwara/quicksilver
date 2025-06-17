@@ -2242,6 +2242,14 @@ function InteractionMenu(props: {
   if (isAnchorElement(props.element)) {
     interactions.push(
       {
+        desc: "Copy link",
+        fn: () => {
+          navigator.clipboard.writeText(
+            (props.element as HTMLAnchorElement).href
+          );
+        },
+      },
+      {
         desc: "Open in new tab",
         fn: () => {
           handleElementInteraction(props.element, {
