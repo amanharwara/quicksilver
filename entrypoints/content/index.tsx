@@ -1504,7 +1504,6 @@ function MediaControls(props: {
             const target = event.target;
             props.media.volume = parseFloat(target.value);
           }}
-          disabled={muted()}
         />
       </div>
       <button
@@ -3753,7 +3752,6 @@ function Root() {
     }
 
     const mode = currentMode();
-    console.log(mode);
 
     if (isEscapeKey(key) && !actionUniqueKeys[mode].has("escape")) {
       if (mode !== Mode.Normal || keyInput().length > 0) {
