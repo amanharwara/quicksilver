@@ -1662,6 +1662,7 @@ function MediaList(props: { context: Context }) {
     if (!(media instanceof HTMLMediaElement)) continue;
     mediaElements.push(media);
   }
+  mediaElements.sort((a, b) => +a.paused - +b.paused);
 
   const [selectedMedia, setSelectedMedia] =
     createSignal<HTMLMediaElement | null>(null);
