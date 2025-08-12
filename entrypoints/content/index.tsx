@@ -1077,7 +1077,7 @@ function Toggle(props: {
       }}
     >
       <input
-        class="sr-only"
+        class="qs-sr-only"
         type="checkbox"
         checked={props.active}
         onChange={(event) => {
@@ -1090,7 +1090,7 @@ function Toggle(props: {
           height: rem(1.325),
         },
       })}
-      <span class="sr-only">{props.label}</span>
+      <span class="qs-sr-only">{props.label}</span>
     </label>
   );
 }
@@ -1539,7 +1539,7 @@ function MediaControls(props: {
             }}
           />
         </Show>
-        <span class="sr-only">
+        <span class="qs-sr-only">
           <Show when={isPlaying()} fallback={"Play"}>
             Pause
           </Show>
@@ -1580,7 +1580,7 @@ function MediaControls(props: {
           }}
           onClick={() => setIsPlaybackRateMenuOpen((open) => !open)}
         >
-          <div class="sr-only">Playback speed:</div>
+          <div class="qs-sr-only">Playback speed:</div>
           <div>{playbackRate()}x</div>
           <ChevronDownIcon
             style={{
@@ -1821,6 +1821,18 @@ function TabList(props: { context: Context; cookieStoreId?: string }) {
     }
     return response;
   });
+  const [containers] = createResource(async function getAllContainers() {
+    if (import.meta.env.BROWSER !== "firefox") {
+      return;
+    }
+    const response = await sendMessage("getAllContainers", undefined);
+    if (!Array.isArray(response)) return;
+    const containersMap: Record<string, Container> = {};
+    for (const container of response) {
+      containersMap[container.cookieStoreId] = { ...container };
+    }
+    return containersMap;
+  });
 
   const [selectedTab, setSelectedTab] = createSignal<Browser.tabs.Tab>();
 
@@ -1889,11 +1901,39 @@ function TabList(props: { context: Context; cookieStoreId?: string }) {
           itemContent={(tab) => (
             <>
               <div
-                class="qs-text-ellipsis"
-                style={{ "font-weight": "bold" }}
-                title={tab.title}
+                style={{
+                  display: "flex",
+                  "align-items": "center",
+                  gap: "1rem",
+                  overflow: "hidden",
+                }}
               >
-                {tab.title}
+                <div
+                  class="qs-text-ellipsis"
+                  style={{ "font-weight": "bold", "flex-grow": "1" }}
+                  title={tab.title}
+                >
+                  {tab.title}
+                </div>
+                <Show when={"cookieStoreId" in tab && !props.cookieStoreId}>
+                  <div
+                    style={{
+                      "font-size": "small",
+                      background:
+                        //@ts-expect-error firefox-only property
+                        containers()?.[tab.cookieStoreId]?.colorCode ||
+                        undefined,
+                      color: "black",
+                      "border-radius": rem(0.5),
+                      padding: `${rem(0.15)} ${rem(0.35)}`,
+                    }}
+                  >
+                    {
+                      //@ts-expect-error firefox-only property
+                      containers()?.[tab.cookieStoreId]?.name
+                    }
+                  </div>
+                </Show>
               </div>
               <div
                 class="qs-text-ellipsis"
@@ -2023,11 +2063,20 @@ function ContainerList(props: {
                   height: "1rem",
                   "border-radius": "100%",
                   "background-color": container.colorCode || "#fff",
+                  "flex-shrink": 0,
                 }}
               />
-              <span class="qs-text-ellipsis" title={container.name}>
+              <span
+                class="qs-text-ellipsis"
+                style={{ "flex-grow": 1 }}
+                title={container.name}
+              >
                 {container.name}
               </span>
+              <div style={{ "flex-shrink": 0, opacity: "0.65" }}>
+                <div class="qs-sr-only">Open tabs:</div>
+                {container.openTabs}
+              </div>
             </div>
           )}
           filter={(item, lowercaseQuery) =>
@@ -4067,7 +4116,7 @@ function Root() {
 .qs-toggle:has(input:focus-visible) {
   outline: 2px solid cornflowerblue;
 }
-.sr-only {
+.qs-sr-only {
   position: absolute;
   width: 1px;
   height: 1px;

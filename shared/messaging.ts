@@ -9,6 +9,7 @@ export type Container = {
   colorCode: string;
   iconUrl: string;
   name: string;
+  openTabs: number;
 };
 
 export interface ProtocolMap {

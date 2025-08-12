@@ -1,4 +1,4 @@
-import { onMessage, ProtocolMap } from "../shared/messaging";
+import { Container, onMessage, ProtocolMap } from "../shared/messaging";
 
 onMessage("getActiveTab", async () => {
   const [activeTab] = await browser.tabs.query({
@@ -20,7 +20,18 @@ onMessage("getAllTabs", async (message) => {
 onMessage("getAllContainers", async () => {
   // @ts-expect-error firefox-only property not available with normal types
   const containers = await browser.contextualIdentities.query({});
-  return containers;
+  const mapped: Container[] = [];
+  for (const container of containers) {
+    const allTabs = await browser.tabs.query({
+      windowId: browser.windows.WINDOW_ID_CURRENT,
+      cookieStoreId: container.cookieStoreId,
+    } as Browser.tabs.QueryInfo);
+    mapped.push({
+      ...container,
+      openTabs: allTabs.length,
+    });
+  }
+  return mapped;
 });
 
 async function openNewTab(options: Parameters<ProtocolMap["openNewTab"]>[0]) {
