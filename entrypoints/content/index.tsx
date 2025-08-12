@@ -1209,6 +1209,8 @@ function msToTime(duration: number) {
   }:${seconds < 10 ? "0" + seconds : seconds}`;
 }
 
+// TODO: make it much thinner
+// and add vim style keybinds
 function MediaControls(props: {
   context: Context;
   media: HTMLMediaElement;
@@ -1926,6 +1928,7 @@ function TabList(props: { context: Context; cookieStoreId?: string }) {
                       color: "black",
                       "border-radius": rem(0.5),
                       padding: `${rem(0.15)} ${rem(0.35)}`,
+                      "flex-shrink": "0",
                     }}
                   >
                     {
