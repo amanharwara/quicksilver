@@ -2882,9 +2882,11 @@ function Root() {
       }
     }
     const firstResult = filtered[0];
-    if (filtered.length === 1 && firstResult === highlightInput) {
+    if (filtered.length > 0) {
       event.preventDefault();
       event.stopImmediatePropagation();
+    }
+    if (filtered.length === 1 && firstResult === highlightInput) {
       handleInteraction(firstResult);
     } else if (filtered.length === 0) {
       setCurrentMode(Mode.Normal);
