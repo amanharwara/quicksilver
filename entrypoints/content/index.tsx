@@ -3338,8 +3338,8 @@ function Root() {
         desc: "Highlight interactive elements to hover",
         fn: highlightInteractiveElementsToHover,
       },
-      p: { desc: "Toggle passthrough", fn: togglePassthrough },
-      "C-p": {
+      "C-p": { desc: "Toggle passthrough", fn: togglePassthrough },
+      "C-S-:": {
         desc: "Show command palette",
         fn: () => toggleCommandPalette(true),
       },
@@ -3840,7 +3840,9 @@ function Root() {
     const keyRepresentation = getKeyRepresentation(event);
     info("event key:", keyRepresentation);
 
-    if (isPassthrough() && keyRepresentation !== "p") {
+    const isTogglePassthroughKey = keyRepresentation === "C-p";
+
+    if (isPassthrough() && !isTogglePassthroughKey) {
       info("ignoring because passthrough mode");
       return;
     }
