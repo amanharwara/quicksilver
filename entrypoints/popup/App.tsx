@@ -5,7 +5,7 @@ import {
   Blocklist,
 } from "../../shared/storage";
 import { error } from "../../shared/log";
-import { CheckIcon, EditIcon, PlusIcon, TrashIcon } from "../../shared/icons";
+import { CheckIcon, PencilIcon, PlusIcon, TrashIcon } from "../../shared/icons";
 import { sendMessage } from "../../shared/messaging";
 import { Browser } from "wxt/browser";
 import { nanoid } from "nanoid";
@@ -234,7 +234,7 @@ function App() {
                       setToAddValue(rule.value);
                     }}
                   >
-                    <EditIcon class="w-4 h-4" />
+                    <PencilIcon class="w-4 h-4" />
                     <div class="sr-only">Edit</div>
                   </Button>
                   <Button

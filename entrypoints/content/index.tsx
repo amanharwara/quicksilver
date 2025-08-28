@@ -1,14 +1,14 @@
 import { Accessor, Component, ComponentProps, JSX } from "solid-js";
 import { Container, sendMessage } from "../../shared/messaging";
 import {
-  ArrowBigUpIcon,
+  ArrowUpTrayIcon,
   ChevronDownIcon,
-  CloseIcon,
+  XMarkIcon,
   LoopIcon,
   MuteIcon,
   PauseIcon,
   PlayIcon,
-  SlidersHorizontalIcon,
+  AdjustmentsHorizontalIcon,
   VolumeIcon,
 } from "../../shared/icons";
 import { disableLogging, enableLogging, error, info } from "../../shared/log";
@@ -340,7 +340,7 @@ function Key(props: { key: string; style?: JSX.CSSProperties }) {
     >
       <Switch fallback={props.key}>
         <Match when={props.key === "⇧"}>
-          <ArrowBigUpIcon
+          <ArrowUpTrayIcon
             style={{
               width: rem(1),
               height: rem(1),
@@ -1065,15 +1065,19 @@ function Toggle(props: {
   active: boolean;
   onChange: (active: boolean) => void;
   label: string;
-  icon: Component<ComponentProps<"svg">>;
+  icon: JSX.Element;
+  class?: string;
+  style?: JSX.CSSProperties;
 }) {
   return (
     <label
       title={props.label}
-      classList={{
-        "qs-outline-btn": true,
-        "qs-toggle": true,
-        active: props.active,
+      class={"qs-focus-within " + props.class}
+      style={{
+        display: "flex",
+        "align-items": "center",
+        "justify-content": "center",
+        ...props.style,
       }}
     >
       <input
@@ -1084,12 +1088,7 @@ function Toggle(props: {
           props.onChange(event.target.checked);
         }}
       />
-      {props.icon({
-        style: {
-          width: rem(1.325),
-          height: rem(1.325),
-        },
-      })}
+      {props.icon}
       <span class="qs-sr-only">{props.label}</span>
     </label>
   );
@@ -1198,6 +1197,16 @@ function msFromSeconds(seconds: number) {
   return seconds * 1000;
 }
 
+function secondsFromMs(ms: number) {
+  return ms / 1000;
+}
+function secondsFromMin(min: number) {
+  return min * 60;
+}
+function secondsFromHrs(hrs: number) {
+  return hrs * 60 * 60;
+}
+
 // adapted from: https://stackoverflow.com/a/19700358
 function msToTime(duration: number) {
   let seconds = Math.floor((duration / 1000) % 60),
@@ -1216,6 +1225,9 @@ function MediaControls(props: {
   media: HTMLMediaElement;
   close: () => void;
 }) {
+  const [isCommandMode, setIsCommandMode] = createSignal(false);
+  const [command, setCommand] = createSignal("");
+
   const [isPlaying, setIsPlaying] = createSignal(!props.media.paused);
   const [currentTime, setCurrentTime] = createSignal(props.media.currentTime);
   const [duration, setDuration] = createSignal(props.media.duration);
@@ -1232,15 +1244,120 @@ function MediaControls(props: {
   const [isPlaybackRateMenuOpen, setIsPlaybackRateMenuOpen] =
     createSignal(false);
 
-  let popup: HTMLDialogElement | undefined;
+  let popup: HTMLDivElement | undefined;
+  let commandInput: HTMLInputElement | undefined;
   let playbackRateButton: HTMLButtonElement | undefined;
   const [playbackRateMenuPos, setPlaybackRateMenuPos] = createSignal<
     { minWidth: number; bottom: number; right: number } | undefined
   >();
 
+  function toggleMuted() {
+    props.media.muted = !props.media.muted;
+  }
+  function togglePlay() {
+    const media = props.media;
+    if (isPlaying()) {
+      media.pause();
+    } else {
+      media.play();
+    }
+  }
+  function toggleLoop() {
+    setLoop((props.media.loop = !props.media.loop));
+  }
+  function toggleNativeControls() {
+    setShowNativeControls((props.media.controls = !props.media.controls));
+  }
+
+  function getSecondsFromArg(arg: string): number {
+    if (!arg) return NaN;
+    let by = parseFloat(arg);
+    if (!Number.isNaN(by)) {
+      if (arg.endsWith("ms")) {
+        by = secondsFromMs(by);
+      } else if (arg.endsWith("min")) {
+        by = secondsFromHrs(by);
+      } else if (arg.endsWith("h") || arg.endsWith("hr")) {
+        by = secondsFromHrs(by);
+      }
+    }
+    return by;
+  }
+
+  function handleCommand(commandStr: string) {
+    try {
+      commandStr = commandStr.slice(1); // remove ':' from start
+      let [command, arg] = commandStr.split(" ");
+      if (!command) {
+        return;
+      }
+      command = command.toLowerCase();
+      switch (command) {
+        case "rate":
+        case "r": {
+          if (!arg) return;
+          const rate = parseFloat(arg);
+          if (Number.isNaN(rate)) return;
+          props.media.playbackRate = Math.max(rate, 0.1);
+          return;
+        }
+        case "m":
+        case "muted":
+          toggleMuted();
+          return;
+        case "v":
+        case "volume": {
+          if (!arg) return;
+          let volume = parseFloat(arg);
+          if (Number.isNaN(volume)) return;
+          if (volume > 1) {
+            volume = volume / 100; // normalize
+          }
+          props.media.volume = volume;
+          return;
+        }
+        case "l":
+        case "loop":
+          toggleLoop();
+          return;
+        case "p":
+        case "play":
+        case "pause":
+          togglePlay();
+          return;
+        case "f":
+        case "fwd": {
+          const by = getSecondsFromArg(arg);
+          if (Number.isNaN(by)) return;
+          props.media.currentTime = Math.min(
+            props.media.currentTime + by,
+            props.media.duration
+          );
+          return;
+        }
+        case "b":
+        case "bwd": {
+          const by = getSecondsFromArg(arg);
+          if (Number.isNaN(by)) return;
+          props.media.currentTime = Math.max(props.media.currentTime - by, 0);
+          return;
+        }
+        case "ctl":
+          toggleNativeControls();
+          return;
+      }
+    } finally {
+      setCommand("");
+      setIsCommandMode(false);
+    }
+  }
+
   onMount(() => {
+    const controller = new AbortController();
+
     if (popup) {
       popup.focus();
+
       if (playbackRateButton) {
         const rateBtnRect = playbackRateButton.getBoundingClientRect();
         setPlaybackRateMenuPos({
@@ -1251,9 +1368,34 @@ function MediaControls(props: {
           right: document.documentElement.clientWidth - rateBtnRect.right,
         });
       }
+
+      document.addEventListener(
+        "focusout",
+        (e) => {
+          const el = e.relatedTarget as HTMLElement;
+          const contains = popup.contains(el);
+          if (!contains) {
+            popup.querySelector("input")?.focus();
+          }
+        },
+        {
+          signal: controller.signal,
+        }
+      );
     }
 
-    const controller = new AbortController();
+    createEffect(() => {
+      if (isCommandMode()) {
+        commandInput?.focus();
+      }
+    });
+
+    createEffect(() => {
+      const _command = command();
+      if (!_command.startsWith(":")) {
+        setCommand(":" + _command);
+      }
+    });
 
     props.media.addEventListener(
       "play",
@@ -1318,7 +1460,26 @@ function MediaControls(props: {
     const cleanupKeydownListener = props.context.registerKeydownListener(
       (event) => {
         const key = getKeyRepresentation(event);
+        if (isCommandMode()) {
+          switch (key) {
+            case "escape":
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              setIsCommandMode(false);
+            case "enter":
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              handleCommand(command());
+          }
+          return true;
+        }
         switch (key) {
+          case "S-:": {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            setIsCommandMode(true);
+            return true;
+          }
           case "<leader>": {
             const input = (event.target as HTMLElement).closest("input");
             if (input && input.type !== "range") {
@@ -1326,7 +1487,7 @@ function MediaControls(props: {
             }
             event.preventDefault();
             event.stopImmediatePropagation();
-            toggleMediaPlay();
+            togglePlay();
             return true;
           }
           case "S-<": {
@@ -1344,27 +1505,51 @@ function MediaControls(props: {
           case "m": {
             event.preventDefault();
             event.stopImmediatePropagation();
-            props.media.muted = !props.media.muted;
+            toggleMuted();
             return true;
           }
+          case "j":
           case "arrowdown": {
             event.preventDefault();
             event.stopImmediatePropagation();
-            props.media.volume = Math.max(props.media.volume - 0.15, 0);
+            if (document.activeElement === playbackRateButton) {
+              const currentRateIndex = playbackRates.findIndex(
+                (v) => v === playbackRate()
+              );
+              const nextRate = playbackRates[currentRateIndex + 1];
+              if (nextRate !== undefined) {
+                props.media.playbackRate = nextRate;
+              }
+            } else {
+              props.media.volume = Math.max(props.media.volume - 0.15, 0);
+            }
             return true;
           }
+          case "k":
           case "arrowup": {
             event.preventDefault();
             event.stopImmediatePropagation();
-            props.media.volume = Math.min(props.media.volume + 0.15, 1);
+            if (document.activeElement === playbackRateButton) {
+              const currentRateIndex = playbackRates.findIndex(
+                (v) => v === playbackRate()
+              );
+              const prevRate = playbackRates[currentRateIndex - 1];
+              if (prevRate !== undefined) {
+                props.media.playbackRate = prevRate;
+              }
+            } else {
+              props.media.volume = Math.min(props.media.volume + 0.15, 1);
+            }
             return true;
           }
+          case "h":
           case "arrowleft": {
             event.preventDefault();
             event.stopImmediatePropagation();
             props.media.currentTime = Math.max(props.media.currentTime - 5, 0);
             return true;
           }
+          case "l":
           case "arrowright": {
             event.preventDefault();
             event.stopImmediatePropagation();
@@ -1419,50 +1604,118 @@ function MediaControls(props: {
     return msToTime(msFromSeconds(duration()));
   });
 
-  function toggleMediaPlay() {
-    const media = props.media;
-    if (isPlaying()) {
-      media.pause();
-    } else {
-      media.play();
-    }
-  }
+  const IconSize = {
+    width: rem(1.15),
+    height: rem(1.15),
+    "flex-shrink": 0,
+  };
 
   return (
-    <Popup
-      context={props.context}
+    <div
+      tabIndex={-1}
       ref={popup}
       style={{
-        display: "grid",
-        "grid-template-columns": "repeat(3, 1fr)",
-        "grid-template-rows": "repeat(3, auto)",
-        gap: rem(0.5),
-        padding: rem(0.875),
+        position: "fixed",
+        bottom: 0,
+        left: 0,
+        right: 0,
+
+        background: Colors["cb-dark-70"],
+        color: Colors["cb-light-90"],
+        "font-family": "sans-serif",
+        "font-size": "14px",
       }}
-      tabIndex={-1}
     >
-      <div
+      <input
+        ref={commandInput}
         style={{
-          "grid-row": "1",
-          "grid-column": "1 / 4",
-          "font-weight": "bold",
-          "text-align": "center",
-          "place-self": "center",
+          display: isCommandMode() ? "" : "none",
+          width: "100%",
+          appearance: "none",
+          background: "transparent",
+          color: "inherit",
+          padding: rem(0.1),
         }}
-      >
-        {props.media.src}
-      </div>
+        value={command()}
+        onInput={(e) => {
+          setCommand(e.target.value);
+        }}
+      />
       <div
         style={{
-          display: "flex",
+          display: isCommandMode() ? "none" : "flex",
           "align-items": "center",
           gap: rem(0.5),
-          "grid-row": "2",
-          "grid-column": "1 / 4",
+          padding: `${rem(0.15)} ${rem(0.25)}`,
         }}
       >
-        <div style={{ "font-variant-numeric": "tabular-nums" }}>
-          {formattedCurrentTime()}
+        <Toggle
+          active={isPlaying()}
+          onChange={togglePlay}
+          label={isPlaying() ? "Playing" : "Paused"}
+          icon={
+            isPlaying() ? (
+              <PauseIcon style={IconSize} />
+            ) : (
+              <PlayIcon style={IconSize} />
+            )
+          }
+        />
+        <Toggle
+          active={muted()}
+          onChange={() => (props.media.muted = !props.media.muted)}
+          label={muted() ? "Muted" : "Unmuted"}
+          icon={
+            muted() ? (
+              <MuteIcon style={IconSize} />
+            ) : (
+              <VolumeIcon style={IconSize} />
+            )
+          }
+        />
+        <input
+          type="range"
+          step={0.05}
+          value={volume()}
+          max={1}
+          style={{ "max-width": rem(5) }}
+          onChange={(event) => {
+            const target = event.target;
+            props.media.volume = parseFloat(target.value);
+          }}
+        />
+        <Toggle
+          active={loop()}
+          onChange={() => toggleLoop()}
+          icon={<LoopIcon style={IconSize} />}
+          label={loop() ? "Disable looping" : "Loop"}
+          style={{ background: loop() ? Colors["cb-dark-20"] : "" }}
+        />
+        <div style={{ "margin-left": rem(0.25) }}>
+          <span>{formattedCurrentTime()}</span>
+          <span style={{ "margin-inline": rem(0.25) }}>/</span>
+          <span>{formattedDurationTime()}</span>
+        </div>
+        <button
+          popoverTarget="playback-rate-menu"
+          style={{
+            appearance: "none",
+            background: isPlaybackRateMenuOpen()
+              ? Colors["cb-dark-50"]
+              : "transparent",
+            color: "inherit",
+            border: "none",
+            padding: rem(0.1),
+            "font-size": "inherit",
+          }}
+          ref={playbackRateButton}
+          onClick={() => setIsPlaybackRateMenuOpen((open) => !open)}
+        >
+          <div class="qs-sr-only">Playback speed:</div>
+          {playbackRate()}x
+        </button>
+        <div class="qs-text-ellipsis" style={{ "max-width": "30%" }}>
+          {props.media.src}
         </div>
         <input
           type="range"
@@ -1475,124 +1728,19 @@ function MediaControls(props: {
             props.media.currentTime = parseFloat(target.value);
           }}
         />
-        <div style={{ "font-variant-numeric": "tabular-nums" }}>
-          {formattedDurationTime()}
-        </div>
-      </div>
-      <div
-        style={{
-          display: "flex",
-          "align-items": "center",
-          gap: rem(0.5),
-          "grid-column": "1 / 2",
-          "grid-row": "3",
-          "justify-self": "start",
-          "align-self": "center",
-        }}
-      >
         <Toggle
-          active={muted()}
-          onChange={() => (props.media.muted = !props.media.muted)}
-          icon={muted() ? MuteIcon : VolumeIcon}
-          label={muted() ? "Unmute" : "Mute"}
-        />
-        <input
-          type="range"
-          step={0.05}
-          value={volume()}
-          max={1}
-          style={{ "flex-grow": "1" }}
-          onChange={(event) => {
-            const target = event.target;
-            props.media.volume = parseFloat(target.value);
-          }}
-        />
-      </div>
-      <button
-        class="qs-btn qs-outline-btn"
-        style={{
-          display: "grid",
-          "place-items": "center",
-          "grid-column": "2 / 3",
-          "grid-row": "3",
-          "place-self": "center",
-          color: Colors["cb-light-90"],
-          padding: rem(0.25),
-          border: `2px solid ${Colors["cb-dark-50"]}`,
-          "border-radius": rem(0.25),
-        }}
-        onClick={toggleMediaPlay}
-      >
-        <Show
-          when={isPlaying()}
-          fallback={
-            <PlayIcon
-              style={{
-                width: rem(1.325),
-                height: rem(1.325),
-              }}
-            />
+          active={showNativeControls()}
+          onChange={toggleNativeControls}
+          icon={<AdjustmentsHorizontalIcon style={IconSize} />}
+          label={
+            showNativeControls()
+              ? "Hide native controls"
+              : "Show native controls"
           }
-        >
-          <PauseIcon
-            style={{
-              width: rem(1.325),
-              height: rem(1.325),
-            }}
-          />
-        </Show>
-        <span class="qs-sr-only">
-          <Show when={isPlaying()} fallback={"Play"}>
-            Pause
-          </Show>
-        </span>
-      </button>
-      <div
-        style={{
-          display: "flex",
-          "align-items": "center",
-          gap: rem(0.5),
-          "grid-row": "3",
-          "grid-column": "3",
-          "justify-self": "end",
-          "align-self": "center",
-        }}
-      >
-        <button
-          ref={playbackRateButton}
-          class="qs-btn qs-outline-btn"
-          popoverTarget="playback-rate-menu"
           style={{
-            display: "flex",
-            "align-items": "center",
-            gap: rem(0.25),
-            color: Colors["cb-light-90"],
-            padding: `${rem(0.25)} ${rem(0.325)}`,
-            border: `2px solid ${Colors["cb-dark-50"]}`,
-            "border-radius": rem(0.25),
-            "border-top-right-radius": isPlaybackRateMenuOpen()
-              ? "0px"
-              : undefined,
-            "border-top-left-radius": isPlaybackRateMenuOpen()
-              ? "0px"
-              : undefined,
-            background: isPlaybackRateMenuOpen()
-              ? Colors["cb-dark-50"]
-              : undefined,
+            background: showNativeControls() ? Colors["cb-dark-20"] : "",
           }}
-          onClick={() => setIsPlaybackRateMenuOpen((open) => !open)}
-        >
-          <div class="qs-sr-only">Playback speed:</div>
-          <div>{playbackRate()}x</div>
-          <ChevronDownIcon
-            style={{
-              width: rem(1.25),
-              height: rem(1.25),
-              transition: "rotate 50ms",
-              rotate: isPlaybackRateMenuOpen() ? "180deg" : undefined,
-            }}
-          />
-        </button>
+        />
         <Show when={playbackRateMenuPos()}>
           {(pos) => (
             <div
@@ -1633,44 +1781,18 @@ function MediaControls(props: {
             </div>
           )}
         </Show>
-        <Toggle
-          active={showNativeControls()}
-          onChange={() =>
-            setShowNativeControls(
-              (props.media.controls = !props.media.controls)
-            )
-          }
-          icon={SlidersHorizontalIcon}
-          label={
-            showNativeControls()
-              ? "Hide native controls"
-              : "Show native controls"
-          }
-        />
-        <Toggle
-          active={loop()}
-          onChange={() => setLoop((props.media.loop = !props.media.loop))}
-          icon={LoopIcon}
-          label={loop() ? "Disable looping" : "Loop"}
-        />
       </div>
-    </Popup>
+    </div>
   );
 }
 
-function MediaList(props: { context: Context }) {
-  const mediaElements: HTMLMediaElement[] = [];
-  for (const media of document.querySelectorAll("video, audio")) {
-    if (!(media instanceof HTMLMediaElement)) continue;
-    mediaElements.push(media);
-  }
-  mediaElements.sort((a, b) => +a.paused - +b.paused);
-
+function MediaList(props: {
+  context: Context;
+  mediaElements: HTMLMediaElement[];
+  onClose: () => void;
+}) {
   const [selectedMedia, setSelectedMedia] =
     createSignal<HTMLMediaElement | null>(null);
-  if (mediaElements.length === 1) {
-    setSelectedMedia(mediaElements[0]);
-  }
 
   return (
     <>
@@ -1678,7 +1800,7 @@ function MediaList(props: { context: Context }) {
         <Popup context={props.context}>
           <ListSearch
             context={props.context}
-            items={mediaElements}
+            items={props.mediaElements}
             itemContent={(item) => (
               <span class="qs-text-ellipsis" title={item.src}>
                 {item.src}
@@ -1688,6 +1810,7 @@ function MediaList(props: { context: Context }) {
             handleSelect={function selectMedia(media) {
               setSelectedMedia(media);
             }}
+            onClose={props.onClose}
           />
         </Popup>
       </Show>
@@ -2543,7 +2666,7 @@ function Config(props: { context: Context }) {
             onClick={() => props.context.resetState(true)}
             ref={closeButton}
           >
-            <CloseIcon
+            <XMarkIcon
               style={{
                 width: rem(1.25),
                 height: rem(1.25),
@@ -2665,7 +2788,6 @@ function Root() {
   const [shouldShowActionHelp, toggleActionHelp] = createSignal(false);
   const [shouldShowLinkAndButtonList, setShowListAndButtonList] =
     createSignal(false);
-  const [shouldShowMediaList, toggleMediaList] = createSignal(false);
   const [shouldShowTabList, toggleTabList] = createSignal(false);
   const [shouldShowImageList, toggleImageList] = createSignal(false);
   const [shouldShowDebugList, toggleDebugList] = createSignal(false);
@@ -2685,7 +2807,6 @@ function Root() {
   function hideAllPopups() {
     toggleActionHelp(false);
     setShowListAndButtonList(false);
-    toggleMediaList(false);
     toggleTabList(false);
     toggleImageList(false);
     toggleCommandPalette(false);
@@ -3310,7 +3431,33 @@ function Root() {
       i: { desc: "Highlight editable elements", fn: highlightAllInputs },
       "l v": {
         desc: "List all media",
-        fn: () => toggleMediaList((show) => !show),
+        fn: function listAllMedia() {
+          const mediaElements: HTMLMediaElement[] = [];
+          for (const media of document.querySelectorAll("video, audio")) {
+            if (!(media instanceof HTMLMediaElement)) continue;
+            mediaElements.push(media);
+          }
+          mediaElements.sort((a, b) => +a.paused - +b.paused);
+          const popupRoot = context.popupRoot();
+          if (!popupRoot) return;
+          const dispose = render(
+            () =>
+              mediaElements.length === 1 ? (
+                <MediaControls
+                  context={context}
+                  media={mediaElements[0]}
+                  close={() => dispose()}
+                />
+              ) : (
+                <MediaList
+                  context={context}
+                  mediaElements={mediaElements}
+                  onClose={() => dispose()}
+                />
+              ),
+            popupRoot
+          );
+        },
       },
       "l t": {
         desc: "List all tabs",
@@ -4024,9 +4171,6 @@ function Root() {
       <Show when={shouldShowLinkAndButtonList()}>
         <SearchLinksAndButtons context={context} />
       </Show>
-      <Show when={shouldShowMediaList()}>
-        <MediaList context={context} />
-      </Show>
       <Show when={shouldShowTabList()}>
         <TabList context={context} />
       </Show>
@@ -4087,7 +4231,7 @@ function Root() {
       <style>{`
 .qs-text-ellipsis { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
 .qs-input { outline: 0; }
-.qs-input:focus-visible { outline: 2px solid cornflowerblue; }
+.qs-input:focus-visible, .qs-focus-within:focus-within { outline: 2px solid cornflowerblue; }
 .qs-popup { --scrollbar-width: 16px; }
 .qs-popup > * { min-height: 0; }
 .qs-popup ::-webkit-scrollbar { width: var(--scrollbar-width); }
