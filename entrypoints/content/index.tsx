@@ -57,22 +57,22 @@ enum ElementInteractionMode {
 }
 type ElementInteraction =
   | {
-      type: ElementInteractionMode.Click;
-    }
+    type: ElementInteractionMode.Click;
+  }
   | {
-      type: ElementInteractionMode.DoubleClick;
-    }
+    type: ElementInteractionMode.DoubleClick;
+  }
   | {
-      type: ElementInteractionMode.Focus;
-    }
+    type: ElementInteractionMode.Focus;
+  }
   | {
-      type: ElementInteractionMode.OpenInNewTab;
-      window?: "current" | "new" | "private";
-      cookieStoreId?: string;
-    }
+    type: ElementInteractionMode.OpenInNewTab;
+    window?: "current" | "new" | "private";
+    cookieStoreId?: string;
+  }
   | {
-      type: ElementInteractionMode.Hover;
-    };
+    type: ElementInteractionMode.Hover;
+  };
 
 type HighlightElementsOptions = {
   interaction: ElementInteraction | undefined;
@@ -176,9 +176,8 @@ function getKeyRepresentation(event: KeyboardEvent) {
   if (key === LEADER_KEY) {
     key = "<leader>";
   }
-  return `${ctrlKey ? "C-" : ""}${shiftKey ? "S-" : ""}${altKey ? "A-" : ""}${
-    metaKey ? "M-" : ""
-  }${key}`;
+  return `${ctrlKey ? "C-" : ""}${shiftKey ? "S-" : ""}${altKey ? "A-" : ""}${metaKey ? "M-" : ""
+    }${key}`;
 }
 
 type WordInNode = {
@@ -189,13 +188,13 @@ type WordInNode = {
 
 type Highlight =
   | {
-      type: "element";
-      element: HTMLElement;
-    }
+    type: "element";
+    element: HTMLElement;
+  }
   | {
-      type: "word";
-      word: WordInNode;
-    };
+    type: "word";
+    word: WordInNode;
+  };
 
 enum Mode {
   Normal = "Normal",
@@ -1213,9 +1212,8 @@ function msToTime(duration: number) {
     minutes = Math.floor((duration / (1000 * 60)) % 60),
     hours = Math.floor((duration / (1000 * 60 * 60)) % 24);
 
-  return `${hours < 10 ? "0" + hours : hours}:${
-    minutes < 10 ? "0" + minutes : minutes
-  }:${seconds < 10 ? "0" + seconds : seconds}`;
+  return `${hours < 10 ? "0" + hours : hours}:${minutes < 10 ? "0" + minutes : minutes
+    }:${seconds < 10 ? "0" + seconds : seconds}`;
 }
 
 // TODO: make it much thinner
@@ -1275,8 +1273,8 @@ function MediaControls(props: {
     if (!Number.isNaN(by)) {
       if (arg.endsWith("ms")) {
         by = secondsFromMs(by);
-      } else if (arg.endsWith("min")) {
-        by = secondsFromHrs(by);
+      } else if (arg.endsWith("m") || arg.endsWith("min")) {
+        by = secondsFromMin(by);
       } else if (arg.endsWith("h") || arg.endsWith("hr")) {
         by = secondsFromHrs(by);
       }
@@ -1590,9 +1588,16 @@ function MediaControls(props: {
       }
     );
 
+    const cleanupKeyupListener = props.context.registerKeyupListener((event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return true;
+    });
+
     onCleanup(() => {
       controller.abort();
       cleanupKeydownListener();
+      cleanupKeyupListener();
     });
   });
 
@@ -2076,7 +2081,7 @@ function TabList(props: { context: Context; cookieStoreId?: string }) {
           filter={(item, lowercaseQuery) =>
             Boolean(
               item.title?.toLowerCase().includes(lowercaseQuery) ||
-                item.url?.toLowerCase().includes(lowercaseQuery)
+              item.url?.toLowerCase().includes(lowercaseQuery)
             )
           }
           handleSelect={function selectTab(item) {
@@ -2212,8 +2217,8 @@ function ContainerList(props: {
             props.handleSelect
               ? props.handleSelect
               : (item) => {
-                  setSelectedContainer(item);
-                }
+                setSelectedContainer(item);
+              }
           }
         />
       </Popup>
@@ -2248,7 +2253,7 @@ function ContainerList(props: {
   );
 }
 
-function noop() {}
+function noop() { }
 
 function DebugList(props: { context: Context }) {
   const debug: number[] = [];
@@ -2364,7 +2369,7 @@ function CommandPalette(props: {
         filter={({ key, desc }, lowercaseQuery) => {
           return Boolean(
             key?.toLowerCase().includes(lowercaseQuery) ||
-              desc.toLowerCase().includes(lowercaseQuery)
+            desc.toLowerCase().includes(lowercaseQuery)
           );
         }}
         handleSelect={handleSelect}
@@ -3328,7 +3333,7 @@ function Root() {
         background: true,
         url: url.toString(),
       });
-    } catch {}
+    } catch { }
   }
 
   function searchSelectedText() {
@@ -4243,16 +4248,13 @@ function Root() {
 }
 .qs-popup:focus-visible, .qs-popup *:focus-visible { outline: 2px solid cornflowerblue; }
 .qs-list-item { --is-hovered: 0; background: transparent; }
-.qs-list-item:hover, .qs-list-item.active { --is-hovered: 1; background: ${
-        Colors["cb-dark-60"]
-      }; }
+.qs-list-item:hover, .qs-list-item.active { --is-hovered: 1; background: ${Colors["cb-dark-60"]
+        }; }
 .qs-btn { margin: 0; padding: 0; border-color: transparent; font-family: inherit; font-size: inherit; text-align: left; }
-.qs-outline-btn { background: transparent; border: 2px solid ${
-        Colors["cb-dark-50"]
-      }; }
-.qs-outline-btn:hover, .qs-outline-btn:focus { background: ${
-        Colors["cb-dark-60"]
-      }; }
+.qs-outline-btn { background: transparent; border: 2px solid ${Colors["cb-dark-50"]
+        }; }
+.qs-outline-btn:hover, .qs-outline-btn:focus { background: ${Colors["cb-dark-60"]
+        }; }
 .qs-outline-btn:focus-visible { outline: 2px solid cornflowerblue; }
 .qs-toggle {
   display: grid;
