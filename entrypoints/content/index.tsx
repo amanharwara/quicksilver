@@ -3885,13 +3885,20 @@ function Root() {
     "radio",
     "submit",
   ];
-  function isInputElement(el: Element | EventTarget | null) {
+  function isInputElement(
+    el: Element | EventTarget | null,
+    checkShadowRootActiveElement = true
+  ) {
     if (!(el instanceof Element)) return false;
     if (
       el instanceof HTMLInputElement &&
       InputTypesThatAreNotTextboxes.includes(el.type)
-    )
+    ) {
       return false;
+    }
+    if (el.shadowRoot && checkShadowRootActiveElement) {
+      return isInputElement(el.shadowRoot.activeElement);
+    }
     return (
       (el instanceof HTMLInputElement ||
         el instanceof HTMLTextAreaElement ||
