@@ -42,8 +42,10 @@ import {
   storedConfig,
 } from "../../shared/storage";
 import {
+  deepQuerySelectorAll,
   isAnchorElement,
   isEscapeKey,
+  isHTMLElement,
   isModifierKey,
   rem,
 } from "../../shared/utils";
@@ -2880,7 +2882,7 @@ function Root() {
       state.highlightInteractionMode = interaction;
     }
     clearAllHighlights();
-    const elements = document.querySelectorAll<HTMLElement>(selector);
+    const elements = deepQuerySelectorAll(selector);
     if (!elements || elements.length === 0) {
       return;
     }
