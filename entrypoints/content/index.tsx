@@ -1523,7 +1523,7 @@ function MediaControls(props: {
                 props.media.playbackRate = nextRate;
               }
             } else {
-              props.media.volume = Math.max(props.media.volume - 0.15, 0);
+              props.media.volume = Math.max(props.media.volume - 0.05, 0);
             }
             return true;
           }
@@ -1540,7 +1540,7 @@ function MediaControls(props: {
                 props.media.playbackRate = prevRate;
               }
             } else {
-              props.media.volume = Math.min(props.media.volume + 0.15, 1);
+              props.media.volume = Math.min(props.media.volume + 0.05, 1);
             }
             return true;
           }
@@ -1630,6 +1630,7 @@ function MediaControls(props: {
         bottom: 0,
         left: 0,
         right: 0,
+        "z-index": 69420,
 
         background: Colors["cb-dark-70"],
         color: Colors["cb-light-90"],
@@ -1686,7 +1687,7 @@ function MediaControls(props: {
         />
         <input
           type="range"
-          step={0.05}
+          step={0.01}
           value={volume()}
           max={1}
           style={{ "max-width": rem(5) }}
