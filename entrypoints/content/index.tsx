@@ -3335,18 +3335,21 @@ function Root() {
     const selection = getSelection();
     if (!selection) return;
 
-    try {
-      const selectionText = selection.toString();
-      let possibleURL = selectionText;
-      if (!StartsWithProtocolRegex.test(possibleURL)) {
-        possibleURL = "https://" + possibleURL;
-      }
-      const url = new URL(possibleURL);
-      sendMessage("openNewTab", {
-        background: true,
-        url: url.toString(),
-      });
-    } catch {}
+    const selectionText = selection.toString();
+    const splitByNewlines = selectionText.split("\n");
+    for (let i = 0; i < splitByNewlines.length; i++) {
+      try {
+        let possibleURL = splitByNewlines[i];
+        if (!StartsWithProtocolRegex.test(possibleURL)) {
+          possibleURL = "https://" + possibleURL;
+        }
+        const url = new URL(possibleURL);
+        sendMessage("openNewTab", {
+          background: true,
+          url: url.toString(),
+        });
+      } catch {}
+    }
   }
 
   function searchSelectedText() {
