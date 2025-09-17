@@ -3330,7 +3330,7 @@ function Root() {
     }
   }
 
-  const StartsWithProtocolRegex = /^[a-z]:\/\//;
+  const StartsWithProtocolRegex = /^[a-z]+:\/\//;
   function openSelectedTextAsLink() {
     const selection = getSelection();
     if (!selection) return;
