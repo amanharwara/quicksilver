@@ -1357,6 +1357,10 @@ function MediaControls(props: {
   onMount(() => {
     const controller = new AbortController();
 
+    if (props.media.volume > 0.15) {
+      props.media.volume = 0.15;
+    }
+
     if (popup) {
       popup.focus();
 
