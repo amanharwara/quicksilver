@@ -3860,7 +3860,6 @@ function Root() {
     clearAllHighlights();
     cleanupVisualModeElements();
     setKeyInput("");
-    setIsPassthrough(false);
     setCurrentMode(Mode.Normal);
     state.highlightInput = "";
   }
