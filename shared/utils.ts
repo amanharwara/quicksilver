@@ -55,3 +55,15 @@ export function deepQuerySelectorAll(selector: string, root: any = document) {
   }
   return results;
 }
+
+export function getTopLevelParent(el: Element) {
+  let parent: HTMLElement | null | undefined = el.parentElement;
+  if (!parent) return;
+  let level = 0;
+  while (parent?.parentElement != document.body) {
+    if (level > 5) break;
+    level += 1;
+    parent = parent?.parentElement;
+  }
+  return parent;
+}

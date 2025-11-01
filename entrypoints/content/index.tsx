@@ -43,6 +43,7 @@ import {
 } from "../../shared/storage";
 import {
   deepQuerySelectorAll,
+  getTopLevelParent,
   isAnchorElement,
   isEscapeKey,
   isHTMLElement,
@@ -1242,6 +1243,7 @@ function MediaControls(props: {
   const [showNativeControls, setShowNativeControls] = createSignal(
     props.media.controls
   );
+  const [jumpDuration, setJumpDuration] = createSignal(5);
 
   const [isPlaybackRateMenuOpen, setIsPlaybackRateMenuOpen] =
     createSignal(false);
@@ -1347,6 +1349,12 @@ function MediaControls(props: {
         case "ctl":
           toggleNativeControls();
           return;
+        case "j":
+        case "setjmp":
+          const jmp = getSecondsFromArg(arg);
+          if (Number.isNaN(jmp)) return;
+          setJumpDuration(jmp);
+          return;
       }
     } finally {
       setCommand("");
@@ -1359,6 +1367,17 @@ function MediaControls(props: {
 
     if (props.media.volume > 0.15) {
       props.media.volume = 0.15;
+    }
+
+    function focusCommandInput() {
+      if (!commandInput) return;
+      const topLevelParent = getTopLevelParent(commandInput);
+      if (topLevelParent) {
+        if (topLevelParent.inert) topLevelParent.inert = false;
+        if (topLevelParent.ariaHidden === "true")
+          topLevelParent.ariaHidden = null;
+      }
+      commandInput.focus();
     }
 
     if (popup) {
@@ -1381,7 +1400,11 @@ function MediaControls(props: {
           const el = e.relatedTarget as HTMLElement;
           const contains = popup.contains(el);
           if (!contains) {
-            popup.querySelector("input")?.focus();
+            if (isCommandMode()) {
+              focusCommandInput();
+            } else {
+              popup.querySelector("input")?.focus();
+            }
           }
         },
         {
@@ -1391,8 +1414,8 @@ function MediaControls(props: {
     }
 
     createEffect(() => {
-      if (isCommandMode()) {
-        commandInput?.focus();
+      if (isCommandMode() && commandInput) {
+        focusCommandInput();
       }
     });
 
@@ -1552,7 +1575,10 @@ function MediaControls(props: {
           case "arrowleft": {
             event.preventDefault();
             event.stopImmediatePropagation();
-            props.media.currentTime = Math.max(props.media.currentTime - 5, 0);
+            props.media.currentTime = Math.max(
+              props.media.currentTime - jumpDuration(),
+              0
+            );
             return true;
           }
           case "l":
@@ -1560,7 +1586,7 @@ function MediaControls(props: {
             event.preventDefault();
             event.stopImmediatePropagation();
             props.media.currentTime = Math.min(
-              props.media.currentTime + 5,
+              props.media.currentTime + jumpDuration(),
               props.media.duration
             );
             return true;
@@ -1643,6 +1669,8 @@ function MediaControls(props: {
       }}
     >
       <input
+        id="media-controls-command-input"
+        aria-label="Media controls command input"
         ref={commandInput}
         style={{
           display: isCommandMode() ? "" : "none",
