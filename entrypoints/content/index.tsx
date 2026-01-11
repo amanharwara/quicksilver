@@ -2157,6 +2157,7 @@ function TabList(props: { context: Context; cookieStoreId?: string }) {
 function ContainerList(props: {
   context: Context;
   handleSelect?: (item: Container) => void;
+  onClose?: () => void;
 }) {
   const [containers] = createResource(async function getAllTabs() {
     const response = await sendMessage("getAllContainers", undefined);
@@ -2259,6 +2260,7 @@ function ContainerList(props: {
                   setSelectedContainer(item);
                 }
           }
+          onClose={props.onClose}
         />
       </Popup>
       <Show when={selectedContainer() && !shouldShowTabList()}>
@@ -3810,6 +3812,7 @@ function Root() {
                   cookieStoreId: container.cookieStoreId,
                 });
               }}
+              onClose={dispose}
             />
           ),
           state.popupRoot
