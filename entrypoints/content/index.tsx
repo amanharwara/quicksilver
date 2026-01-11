@@ -3812,7 +3812,7 @@ function Root() {
                   cookieStoreId: container.cookieStoreId,
                 });
               }}
-              onClose={dispose}
+              onClose={() => dispose()}
             />
           ),
           state.popupRoot
