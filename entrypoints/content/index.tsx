@@ -89,14 +89,14 @@ type Context = {
   hideAllPopups: () => void;
   resetState: (hidePopups: boolean) => void;
   registerKeydownListener: (
-    listener: KeyEventListener
+    listener: KeyEventListener,
   ) => KeyEventListenerCleanup;
   registerKeyupListener: (
-    listener: KeyEventListener
+    listener: KeyEventListener,
   ) => KeyEventListenerCleanup;
   highlightElementsBySelector: (
     selector: string,
-    options: HighlightElementsOptions
+    options: HighlightElementsOptions,
   ) => void;
   popupRoot: () => HTMLElement | undefined;
 };
@@ -151,7 +151,7 @@ function createElement(
     styles?: ElementStyles;
     children?: HTMLElement[];
     text?: string;
-  } = {}
+  } = {},
 ) {
   const element = document.createElement(tag);
   const { className, styles, children, text } = options;
@@ -171,14 +171,15 @@ function createElement(
   return element;
 }
 
-const LEADER_KEY = " ";
-
 function getKeyRepresentation(event: KeyboardEvent) {
-  const { ctrlKey, shiftKey, altKey, metaKey, key: eventKey } = event;
-  let key = eventKey.toLowerCase();
-  if (key === LEADER_KEY) {
-    key = "<leader>";
+  const { ctrlKey, shiftKey, altKey, metaKey, key: eventKey, code } = event;
+  let key = eventKey;
+  if (key === " ") {
+    key = "space";
+  } else if (key === "Unidentified") {
+    key = code;
   }
+  key = key.toLowerCase();
   return `${ctrlKey ? "C-" : ""}${shiftKey ? "S-" : ""}${altKey ? "A-" : ""}${
     metaKey ? "M-" : ""
   }${key}`;
@@ -215,7 +216,9 @@ type Actions = Record<
 const Colors = {
   "cb-dark-80": "color-mix(in oklab, cornflowerblue, black 80%)",
   "cb-dark-70": "color-mix(in oklab, cornflowerblue, black 70%)",
+  "cb-dark-65": "color-mix(in oklab, cornflowerblue, black 65%)",
   "cb-dark-60": "color-mix(in oklab, cornflowerblue, black 60%)",
+  "cb-dark-55": "color-mix(in oklab, cornflowerblue, black 55%)",
   "cb-dark-50": "color-mix(in oklab, cornflowerblue, black 50%)",
   "cb-dark-40": "color-mix(in oklab, cornflowerblue, black 40%)",
   "cb-dark-30": "color-mix(in oklab, cornflowerblue, black 30%)",
@@ -378,7 +381,7 @@ type KeyEventListenerCleanup = () => void;
 
 function handleElementInteraction(
   element: HTMLElement,
-  mode: ElementInteraction
+  mode: ElementInteraction,
 ) {
   switch (mode.type) {
     case ElementInteractionMode.Click:
@@ -571,7 +574,8 @@ function ClickableItemComp(
     index: number;
     focusedIndex: number;
     children: JSX.Element;
-  } & ComponentProps<"button">
+    isSelected: boolean;
+  } & ComponentProps<"button">,
 ) {
   const [props, rest] = splitProps(allProps, [
     "index",
@@ -579,6 +583,7 @@ function ClickableItemComp(
     "children",
     "style",
     "class",
+    "isSelected",
   ]);
 
   let itemElement: HTMLButtonElement | undefined;
@@ -600,7 +605,8 @@ function ClickableItemComp(
       classList={{
         "qs-btn": true,
         "qs-list-item": true,
-        active: isFocused(),
+        focused: isFocused(),
+        selected: props.isSelected,
       }}
       style={{
         display: "grid",
@@ -711,22 +717,38 @@ function VirtualizedList<Item extends unknown>(props: {
   );
 }
 
-function ListSearch<Item extends unknown>(props: {
+type ListSearchProps<Item> = {
   context: Context;
   items: Item[] | Accessor<Item[]>;
   filter: (item: Item, lowercaseQuery: string) => boolean;
   itemContent: (item: Item, isFocused: boolean, index: number) => JSX.Element;
-  handleSelect: (item: Item, event: KeyboardEvent | MouseEvent) => void;
-  onSelectionChange?: (item: Item) => void;
+  onFocusChange?: (item: Item) => void;
   itemProps?: ComponentProps<"button">;
   onClose?: () => void;
-}) {
+} & (
+  | {
+      selectionType?: "single";
+      handleSelect: (item: Item, event: KeyboardEvent | MouseEvent) => void;
+    }
+  | {
+      selectionType: "multiple";
+      handleSelect: (
+        items: Item[],
+        selectAll: boolean,
+        event: KeyboardEvent | MouseEvent,
+      ) => void;
+    }
+);
+
+function ListSearch<Item>(props: ListSearchProps<Item>) {
   let input: HTMLInputElement | undefined;
 
   onMount(() => {
     input?.focus();
   });
 
+  const [hasSelectedAll, setHasSelectedAll] = createSignal(false);
+  const [selectedIndices, setSelectedIndices] = createSignal<number[]>([]);
   const [focusedIndex, setFocusedIndex] = createSignal(0);
   const [query, setQuery] = createSignal("");
 
@@ -747,8 +769,8 @@ function ListSearch<Item extends unknown>(props: {
   const focusedItem = createMemo(() => filtered()[focusedIndex()]);
 
   createEffect(() => {
-    if (props.onSelectionChange) {
-      props.onSelectionChange(focusedItem());
+    if (props.onFocusChange) {
+      props.onFocusChange(focusedItem());
     }
   });
 
@@ -757,6 +779,9 @@ function ListSearch<Item extends unknown>(props: {
   onMount(() => {
     const cleanupKeydownListener = context.registerKeydownListener((event) => {
       switch (getKeyRepresentation(event)) {
+        case "S-space":
+          event.preventDefault();
+          return true;
         case "escape":
           event.preventDefault();
           context.resetState(true);
@@ -772,6 +797,7 @@ function ListSearch<Item extends unknown>(props: {
         case "end":
           setFocusedIndex(filtered().length - 1);
           return true;
+        case "C-arrowdown":
         case "arrowdown":
           setFocusedIndex((index) => {
             const next = index + 1;
@@ -782,6 +808,7 @@ function ListSearch<Item extends unknown>(props: {
             return next;
           });
           return true;
+        case "C-arrowup":
         case "arrowup":
           setFocusedIndex((index) => {
             const prev = index - 1;
@@ -797,11 +824,57 @@ function ListSearch<Item extends unknown>(props: {
     });
 
     const cleanupKeyupListener = context.registerKeyupListener((event) => {
-      switch (event.key) {
-        case "Enter": {
-          const item = focusedItem();
-          if (item) {
-            props.handleSelect(item, event);
+      const key = getKeyRepresentation(event);
+      switch (key) {
+        case "S-space":
+        case "S-enter": {
+          event.preventDefault();
+          if (props.selectionType !== "multiple") return false;
+          const selectedItems: Item[] = [];
+          const allItems = filtered();
+          if (selectedIndices().length === 0) {
+            const item = allItems[focusedIndex()];
+            if (item) selectedItems.push(item);
+          } else {
+            for (const index of selectedIndices()) {
+              const item = allItems[index];
+              if (!item) continue;
+              selectedItems.push(item);
+            }
+          }
+          props.handleSelect(selectedItems, false, event);
+          return true;
+        }
+        case "C-a": {
+          if (props.selectionType !== "multiple") return false;
+          setHasSelectedAll(true);
+          setSelectedIndices([]);
+          return true;
+        }
+        case "C-space":
+        case "C-enter": {
+          if (props.selectionType !== "multiple") return false;
+          setSelectedIndices((indices) => {
+            const index = focusedIndex();
+            if (indices.includes(index)) {
+              return indices.filter((i) => i !== index);
+            } else {
+              return [...indices, index];
+            }
+            return indices;
+          });
+          return true;
+        }
+        case "enter": {
+          if (props.selectionType === "multiple") {
+            const index = focusedIndex();
+            setSelectedIndices([index]);
+            setHasSelectedAll(false);
+          } else {
+            const item = focusedItem();
+            if (item) {
+              props.handleSelect(item, event);
+            }
           }
           return true;
         }
@@ -832,7 +905,13 @@ function ListSearch<Item extends unknown>(props: {
             {...(props.itemProps ? props.itemProps : {})}
             index={index()}
             focusedIndex={focusedIndex()}
-            onClick={(event) => props.handleSelect(item, event)}
+            onClick={(event) => {
+              if (props.selectionType === "multiple") {
+              } else {
+                props.handleSelect(item, event);
+              }
+            }}
+            isSelected={selectedIndices().includes(index()) || hasSelectedAll()}
           >
             {props.itemContent(item, index() === focusedIndex(), index())}
           </ClickableItemComp>
@@ -947,7 +1026,7 @@ function SearchLinksAndButtons(props: { context: Context }) {
               window: "private",
             });
           },
-        }
+        },
       );
       if (import.meta.env.BROWSER === "firefox") {
         actions.push({
@@ -970,7 +1049,7 @@ function SearchLinksAndButtons(props: { context: Context }) {
                   }}
                 />
               ),
-              _el
+              _el,
             );
           },
         });
@@ -1104,7 +1183,7 @@ function PlaybackRateMenu(props: {
   closeMenu: () => void;
 }) {
   const [focusedIndex, setFocusedIndex] = createSignal(
-    playbackRates.findIndex((r) => r === props.media.playbackRate)
+    playbackRates.findIndex((r) => r === props.media.playbackRate),
   );
 
   function selectRate(rate: number) {
@@ -1185,7 +1264,7 @@ function PlaybackRateMenu(props: {
 function increaseMediaPlaybackRate(
   media: HTMLMediaElement,
   by = 0.25,
-  max = 2.5
+  max = 2.5,
 ) {
   const currentRate = media.playbackRate;
   media.playbackRate = Math.min(currentRate + by, max);
@@ -1235,13 +1314,13 @@ function MediaControls(props: {
   const [currentTime, setCurrentTime] = createSignal(props.media.currentTime);
   const [duration, setDuration] = createSignal(props.media.duration);
   const [playbackRate, setPlaybackRate] = createSignal(
-    props.media.playbackRate
+    props.media.playbackRate,
   );
   const [volume, setVolume] = createSignal(props.media.volume);
   const [muted, setMuted] = createSignal(props.media.muted);
   const [loop, setLoop] = createSignal(props.media.loop);
   const [showNativeControls, setShowNativeControls] = createSignal(
-    props.media.controls
+    props.media.controls,
   );
   const [jumpDuration, setJumpDuration] = createSignal(5);
 
@@ -1335,7 +1414,7 @@ function MediaControls(props: {
           if (Number.isNaN(by)) return;
           props.media.currentTime = Math.min(
             props.media.currentTime + by,
-            props.media.duration
+            props.media.duration,
           );
           return;
         }
@@ -1409,7 +1488,7 @@ function MediaControls(props: {
         },
         {
           signal: controller.signal,
-        }
+        },
       );
     }
 
@@ -1434,7 +1513,7 @@ function MediaControls(props: {
       },
       {
         signal: controller.signal,
-      }
+      },
     );
 
     props.media.addEventListener(
@@ -1445,7 +1524,7 @@ function MediaControls(props: {
       },
       {
         signal: controller.signal,
-      }
+      },
     );
 
     props.media.addEventListener(
@@ -1453,7 +1532,7 @@ function MediaControls(props: {
       () => setDuration(props.media.duration),
       {
         signal: controller.signal,
-      }
+      },
     );
 
     props.media.addEventListener(
@@ -1461,7 +1540,7 @@ function MediaControls(props: {
       () => setPlaybackRate(props.media.playbackRate),
       {
         signal: controller.signal,
-      }
+      },
     );
 
     props.media.addEventListener(
@@ -1469,7 +1548,7 @@ function MediaControls(props: {
       () => setCurrentTime(props.media.currentTime),
       {
         signal: controller.signal,
-      }
+      },
     );
 
     props.media.addEventListener(
@@ -1480,7 +1559,7 @@ function MediaControls(props: {
       },
       {
         signal: controller.signal,
-      }
+      },
     );
 
     //
@@ -1509,7 +1588,7 @@ function MediaControls(props: {
             setIsCommandMode(true);
             return true;
           }
-          case "<leader>": {
+          case "space": {
             const input = (event.target as HTMLElement).closest("input");
             if (input && input.type !== "range") {
               return false;
@@ -1543,7 +1622,7 @@ function MediaControls(props: {
             event.stopImmediatePropagation();
             if (document.activeElement === playbackRateButton) {
               const currentRateIndex = playbackRates.findIndex(
-                (v) => v === playbackRate()
+                (v) => v === playbackRate(),
               );
               const nextRate = playbackRates[currentRateIndex + 1];
               if (nextRate !== undefined) {
@@ -1560,7 +1639,7 @@ function MediaControls(props: {
             event.stopImmediatePropagation();
             if (document.activeElement === playbackRateButton) {
               const currentRateIndex = playbackRates.findIndex(
-                (v) => v === playbackRate()
+                (v) => v === playbackRate(),
               );
               const prevRate = playbackRates[currentRateIndex - 1];
               if (prevRate !== undefined) {
@@ -1577,7 +1656,7 @@ function MediaControls(props: {
             event.stopImmediatePropagation();
             props.media.currentTime = Math.max(
               props.media.currentTime - jumpDuration(),
-              0
+              0,
             );
             return true;
           }
@@ -1587,7 +1666,7 @@ function MediaControls(props: {
             event.stopImmediatePropagation();
             props.media.currentTime = Math.min(
               props.media.currentTime + jumpDuration(),
-              props.media.duration
+              props.media.duration,
             );
             return true;
           }
@@ -1596,7 +1675,7 @@ function MediaControls(props: {
             event.stopImmediatePropagation();
             props.media.currentTime = Math.max(
               props.media.currentTime - 0.1,
-              0
+              0,
             );
             return true;
           }
@@ -1605,7 +1684,7 @@ function MediaControls(props: {
             event.stopImmediatePropagation();
             props.media.currentTime = Math.min(
               props.media.currentTime + 0.1,
-              props.media.duration
+              props.media.duration,
             );
             return true;
           }
@@ -1619,7 +1698,7 @@ function MediaControls(props: {
             break;
         }
         return false;
-      }
+      },
     );
 
     const cleanupKeyupListener = props.context.registerKeyupListener(
@@ -1627,7 +1706,7 @@ function MediaControls(props: {
         event.preventDefault();
         event.stopImmediatePropagation();
         return true;
-      }
+      },
     );
 
     onCleanup(() => {
@@ -1983,7 +2062,7 @@ function TabList(props: { context: Context; cookieStoreId?: string }) {
     const cookieStoreId = props.cookieStoreId;
     const response = await sendMessage(
       "getAllTabs",
-      cookieStoreId ? { cookieStoreId } : undefined
+      cookieStoreId ? { cookieStoreId } : undefined,
     );
     if (!Array.isArray(response)) {
       throw new Error("Did not receive correct response");
@@ -2003,55 +2082,59 @@ function TabList(props: { context: Context; cookieStoreId?: string }) {
     return containersMap;
   });
 
-  const [selectedTab, setSelectedTab] = createSignal<Browser.tabs.Tab>();
+  const [_selectedTabs, setSelectedTabs] = createSignal<Browser.tabs.Tab[]>([]);
+  const [hasSelectedAll, setHasSelectedAll] = createSignal(false);
+  const hasSomeSelection = () => _selectedTabs().length > 0 || hasSelectedAll();
+  const selectedTabs = () =>
+    hasSelectedAll() ? (tabs() ?? []) : _selectedTabs();
 
   const tabActions = [
     {
       name: "Open tab",
       fn: function openTab() {
-        const tab = selectedTab();
-        if (!tab) return;
-        sendMessage("activateTab", tab.id);
+        for (const tab of selectedTabs()) {
+          sendMessage("activateTab", tab.id);
+        }
       },
     },
     {
       name: "Close tab",
       fn: function closeTab() {
-        const tab = selectedTab();
-        if (!tab) return;
-        sendMessage("closeTab", tab.id);
+        for (const tab of selectedTabs()) {
+          sendMessage("closeTab", tab.id);
+        }
       },
     },
     {
       name: "Duplicate tab",
       fn: function closeTab() {
-        const tab = selectedTab();
-        if (!tab) return;
-        sendMessage("duplicateTab", tab.id);
+        for (const tab of selectedTabs()) {
+          sendMessage("duplicateTab", tab.id);
+        }
       },
     },
     {
       name: "Move next to current tab",
       fn: function moveTabNextToCurrentTab() {
-        const tab = selectedTab();
-        if (!tab) return;
-        sendMessage("moveTabNextToCurrentTab", tab.id);
+        for (const tab of selectedTabs()) {
+          sendMessage("moveTabNextToCurrentTab", tab.id);
+        }
       },
     },
     {
       name: "Move tab to new window",
       fn: function moveTabToNewWindow() {
-        const tab = selectedTab();
-        if (!tab) return;
-        sendMessage("moveTabToNewWindow", tab.id);
+        for (const tab of selectedTabs()) {
+          sendMessage("moveTabToNewWindow", tab.id);
+        }
       },
     },
     {
       name: "Re-open in private window",
       fn: function reopenInPrivateWindow() {
-        const tab = selectedTab();
-        if (!tab) return;
-        sendMessage("reopenTabInPrivateWindow", tab.id);
+        for (const tab of selectedTabs()) {
+          sendMessage("reopenTabInPrivateWindow", tab.id);
+        }
       },
     },
   ];
@@ -2061,10 +2144,11 @@ function TabList(props: { context: Context; cookieStoreId?: string }) {
       <Popup
         context={props.context}
         style={{
-          visibility: !!selectedTab() ? "hidden" : undefined,
+          visibility: hasSomeSelection() ? "hidden" : undefined,
         }}
       >
         <ListSearch
+          selectionType="multiple"
           context={props.context}
           items={tabs()!}
           itemContent={(tab) => (
@@ -2120,15 +2204,16 @@ function TabList(props: { context: Context; cookieStoreId?: string }) {
           filter={(item, lowercaseQuery) =>
             Boolean(
               item.title?.toLowerCase().includes(lowercaseQuery) ||
-                item.url?.toLowerCase().includes(lowercaseQuery)
+              item.url?.toLowerCase().includes(lowercaseQuery),
             )
           }
-          handleSelect={function selectTab(item) {
-            setSelectedTab(item);
+          handleSelect={function selectTabs(items, selectAll) {
+            setSelectedTabs(items);
+            setHasSelectedAll(selectAll);
           }}
         />
       </Popup>
-      <Show when={selectedTab()}>
+      <Show when={hasSomeSelection()}>
         <Popup context={props.context}>
           <ListSearch
             context={props.context}
@@ -2372,14 +2457,14 @@ function CommandPalette(props: {
             onClose={() => dispose()}
           />
         ),
-        popupRoot
+        popupRoot,
       );
     },
   });
 
   function handleSelect(
     item: (typeof commands)[number],
-    event: KeyboardEvent | MouseEvent
+    event: KeyboardEvent | MouseEvent,
   ) {
     props.context.resetState(true);
     item.fn(event);
@@ -2410,7 +2495,7 @@ function CommandPalette(props: {
         filter={({ key, desc }, lowercaseQuery) => {
           return Boolean(
             key?.toLowerCase().includes(lowercaseQuery) ||
-              desc.toLowerCase().includes(lowercaseQuery)
+            desc.toLowerCase().includes(lowercaseQuery),
           );
         }}
         handleSelect={handleSelect}
@@ -2466,7 +2551,7 @@ function InteractionMenu(props: {
         desc: "Copy link",
         fn: () => {
           navigator.clipboard.writeText(
-            (props.element as HTMLAnchorElement).href
+            (props.element as HTMLAnchorElement).href,
           );
         },
       },
@@ -2495,7 +2580,7 @@ function InteractionMenu(props: {
             window: "private",
           });
         },
-      }
+      },
     );
   }
 
@@ -2580,19 +2665,19 @@ function InteractWithCustomSelector(props: {
 
   function setElementsFromSelector(selector: string) {
     const elements = Array.from(
-      document.querySelectorAll<HTMLElement>(selector)
+      document.querySelectorAll<HTMLElement>(selector),
     );
     setElements(
       elements.map((element) => {
         const name = `<${element.tagName.toLowerCase()}> ${element.textContent?.slice(
           0,
-          25
+          25,
         )}`;
         return {
           name,
           element,
         };
-      })
+      }),
     );
   }
 
@@ -2625,7 +2710,7 @@ function InteractWithCustomSelector(props: {
               handleSelect={({ element }) => {
                 setSelectedElement(element);
               }}
-              onSelectionChange={({ element }) => {
+              onFocusChange={({ element }) => {
                 if (!rectVisualizer) return;
                 element.scrollIntoView();
                 const rect = element.getBoundingClientRect();
@@ -2793,7 +2878,7 @@ function Root() {
     document.documentElement.lang || "en",
     {
       granularity: "word",
-    }
+    },
   );
 
   const state: {
@@ -2906,7 +2991,7 @@ function Root() {
 
   function highlightElementsBySelector(
     selector: string,
-    options: HighlightElementsOptions
+    options: HighlightElementsOptions,
   ) {
     const {
       checkOpacity = true,
@@ -3016,7 +3101,7 @@ function Root() {
     if (highlight.type === "element") {
       handleElementInteraction(
         highlight.element,
-        getInteractionModeForElement(highlight.element)
+        getInteractionModeForElement(highlight.element),
       );
     } else if (highlight.type === "word") {
       startVisualMode(highlight.word);
@@ -3038,7 +3123,7 @@ function Root() {
     key: string,
     event: KeyboardEvent,
     handleInteraction: (id: string) => void = handleHighlightInteraction,
-    handleNoResultFound?: () => void
+    handleNoResultFound?: () => void,
   ) {
     state.highlightInput += key;
     const ids = Array.from(idToHighlightElementMap.keys());
@@ -3262,7 +3347,7 @@ function Root() {
     const walk = document.createTreeWalker(
       document.body,
       NodeFilter.SHOW_TEXT,
-      null
+      null,
     );
     let node = walk.nextNode();
     const windowHeight = window.innerHeight;
@@ -3459,7 +3544,7 @@ function Root() {
           },
           () => {
             removeListener();
-          }
+          },
         );
         return true;
       }
@@ -3510,7 +3595,7 @@ function Root() {
                   onClose={() => dispose()}
                 />
               ),
-            popupRoot
+            popupRoot,
           );
         },
       },
@@ -3815,7 +3900,7 @@ function Root() {
               onClose={() => dispose()}
             />
           ),
-          state.popupRoot
+          state.popupRoot,
         );
       },
     };
@@ -3838,7 +3923,7 @@ function Root() {
               }}
             />
           ),
-          state.popupRoot
+          state.popupRoot,
         );
       },
     };
@@ -3854,23 +3939,23 @@ function Root() {
   const actionUniqueKeys: Record<Mode, Set<string>> = {
     [Mode.Normal]: new Set(
       actionKeyCombinations[Mode.Normal].flatMap((kc) =>
-        kc.split(WhiteSpaceRegEx)
-      )
+        kc.split(WhiteSpaceRegEx),
+      ),
     ),
     [Mode.Highlight]: new Set(
       actionKeyCombinations[Mode.Highlight].flatMap((kc) =>
-        kc.split(WhiteSpaceRegEx)
-      )
+        kc.split(WhiteSpaceRegEx),
+      ),
     ),
     [Mode.VisualCaret]: new Set(
       actionKeyCombinations[Mode.VisualCaret].flatMap((kc) =>
-        kc.split(WhiteSpaceRegEx)
-      )
+        kc.split(WhiteSpaceRegEx),
+      ),
     ),
     [Mode.VisualRange]: new Set(
       actionKeyCombinations[Mode.VisualRange].flatMap((kc) =>
-        kc.split(WhiteSpaceRegEx)
-      )
+        kc.split(WhiteSpaceRegEx),
+      ),
     ),
   };
 
@@ -3899,7 +3984,7 @@ function Root() {
   const keyupListeners = new Set<KeyEventListener>();
 
   function registerKeydownListener(
-    listener: KeyEventListener
+    listener: KeyEventListener,
   ): KeyEventListenerCleanup {
     keydownListeners.add(listener);
     return () => {
@@ -3909,7 +3994,7 @@ function Root() {
   }
 
   function registerKeyupListener(
-    listener: KeyEventListener
+    listener: KeyEventListener,
   ): KeyEventListenerCleanup {
     keyupListeners.add(listener);
     return () => {
@@ -3927,7 +4012,7 @@ function Root() {
   ];
   function isInputElement(
     el: Element | EventTarget | null,
-    checkShadowRootActiveElement = true
+    checkShadowRootActiveElement = true,
   ) {
     if (!(el instanceof Element)) return false;
     if (
@@ -4077,7 +4162,7 @@ function Root() {
     info("key input:", input);
 
     const filtered = actionKeyCombinations[mode].filter((key) =>
-      key.startsWith(input)
+      key.startsWith(input),
     );
     const firstResult = filtered[0];
     if (filtered.length === 1 && firstResult === input) {
@@ -4150,12 +4235,12 @@ function Root() {
 
     disabledGlobally.getValue().then(setIsDisabledGlobally).catch(error);
     const unwatchDisabledGlobally = disabledGlobally.watch(
-      setIsDisabledGlobally
+      setIsDisabledGlobally,
     );
 
     storedBlocklist.getValue().then(disableForPageIfOnBlocklist).catch(error);
     const unwatchStoredBlocklist = storedBlocklist.watch(
-      disableForPageIfOnBlocklist
+      disableForPageIfOnBlocklist,
     );
 
     onCleanup(() => {
@@ -4305,9 +4390,9 @@ function Root() {
 }
 .qs-popup:focus-visible, .qs-popup *:focus-visible { outline: 2px solid cornflowerblue; }
 .qs-list-item { --is-hovered: 0; background: transparent; }
-.qs-list-item:hover, .qs-list-item.active { --is-hovered: 1; background: ${
-        Colors["cb-dark-60"]
-      }; }
+.qs-list-item.focused, .qs-list-item:hover { --is-hovered: 1; background: ${Colors["cb-dark-65"]}; }
+.qs-list-item.selected { --is-hovered: 1; background: ${Colors["cb-dark-60"]}; }
+.qs-list-item.selected.focused, .qs-list-item.selected:hover { --is-hovered: 1; background: ${Colors["cb-dark-50"]}; }
 .qs-btn { margin: 0; padding: 0; border-color: transparent; font-family: inherit; font-size: inherit; text-align: left; }
 .qs-outline-btn { background: transparent; border: 2px solid ${
         Colors["cb-dark-50"]
@@ -4349,7 +4434,7 @@ export default defineContentScript({
   matches: ["<all_urls>"],
   allFrames: true,
   matchOriginAsFallback: true,
-  cssInjectionMode: "ui",
+  cssInjectionMode: "manifest",
   main(ctx) {
     info("Loaded content script");
 
