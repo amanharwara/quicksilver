@@ -830,6 +830,10 @@ function ListSearch<Item>(props: ListSearchProps<Item>) {
         case "S-enter": {
           event.preventDefault();
           if (props.selectionType !== "multiple") return false;
+          if (hasSelectedAll()) {
+            props.handleSelect([], true, event);
+            return true;
+          }
           const selectedItems: Item[] = [];
           const allItems = filtered();
           if (selectedIndices().length === 0) {
@@ -907,6 +911,14 @@ function ListSearch<Item>(props: ListSearchProps<Item>) {
             focusedIndex={focusedIndex()}
             onClick={(event) => {
               if (props.selectionType === "multiple") {
+                setSelectedIndices((indices) => {
+                  if (indices.includes(index())) {
+                    return indices.filter((i) => i !== index());
+                  } else {
+                    return [...indices, index()];
+                  }
+                  return indices;
+                });
               } else {
                 props.handleSelect(item, event);
               }
