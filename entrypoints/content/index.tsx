@@ -35,7 +35,8 @@ import {
 } from "./selection";
 import {
   Blocklist,
-  ConfigV1,
+  ConfigV2,
+  DefaultConfig,
   DefaultInteractiveElementsSelector,
   disabledGlobally,
   storedBlocklist,
@@ -1318,6 +1319,7 @@ function MediaControls(props: {
   context: Context;
   media: HTMLMediaElement;
   close: () => void;
+  config: ConfigV2;
 }) {
   const [isCommandMode, setIsCommandMode] = createSignal(false);
   const [command, setCommand] = createSignal("");
@@ -1456,8 +1458,10 @@ function MediaControls(props: {
   onMount(() => {
     const controller = new AbortController();
 
-    if (props.media.volume > 0.15) {
-      props.media.volume = 0.15;
+    if (props.config.autoLowerVolume) {
+      if (props.media.volume > props.config.volumeToLowerTo) {
+        props.media.volume = props.config.volumeToLowerTo;
+      }
     }
 
     function focusCommandInput() {
@@ -1925,6 +1929,7 @@ function MediaList(props: {
   context: Context;
   mediaElements: HTMLMediaElement[];
   onClose: () => void;
+  config: ConfigV2;
 }) {
   const [selectedMedia, setSelectedMedia] =
     createSignal<HTMLMediaElement | null>(null);
@@ -1956,6 +1961,7 @@ function MediaList(props: {
           close={() => {
             setSelectedMedia(null);
           }}
+          config={props.config}
         />
       </Show>
     </>
@@ -2759,7 +2765,9 @@ function InteractWithCustomSelector(props: {
 }
 
 function Config(props: { context: Context }) {
-  const [config, setConfig] = createSignal<ConfigV1>();
+  const [config, setConfig] = createSignal<ConfigV2>({
+    ...DefaultConfig,
+  });
   storedConfig.getValue().then(setConfig);
 
   function storeConfig() {
@@ -2864,6 +2872,49 @@ function Config(props: { context: Context }) {
               Reset to default
             </button>
           </div>
+          <div
+            style={{
+              display: "flex",
+              "flex-direction": "column",
+              "margin-bottom": rem(0.5),
+              gap: rem(0.5),
+            }}
+          >
+            <label>
+              <input
+                type="checkbox"
+                checked={config().autoLowerVolume}
+                onInput={(event) => {
+                  setConfig((prev) => ({
+                    ...prev,
+                    autoLowerVolume: event.target.checked,
+                  }));
+                }}
+              />
+              Auto-lower volume when opening media controls
+            </label>
+            <label
+              style={{
+                opacity: !config().autoLowerVolume ? 0.5 : undefined,
+              }}
+            >
+              Lower volume to:
+              <input
+                type="number"
+                disabled={!config().autoLowerVolume}
+                min={0}
+                max={1}
+                step={0.05}
+                value={config().volumeToLowerTo}
+                onInput={(event) =>
+                  setConfig((prev) => ({
+                    ...prev,
+                    volumeToLowerTo: Number(event.target.value),
+                  }))
+                }
+              />
+            </label>
+          </div>
           <button
             type="submit"
             class="qs-btn qs-outline-btn"
@@ -2913,8 +2964,8 @@ function Root() {
     popupRoot: undefined,
   };
 
-  let config: ConfigV1 = {
-    interactiveElementsSelector: DefaultInteractiveElementsSelector,
+  let config: ConfigV2 = {
+    ...DefaultConfig,
   };
   storedConfig.getValue().then((cfg) => {
     config = cfg;
@@ -3599,12 +3650,14 @@ function Root() {
                   context={context}
                   media={mediaElements[0]}
                   close={() => dispose()}
+                  config={config}
                 />
               ) : (
                 <MediaList
                   context={context}
                   mediaElements={mediaElements}
                   onClose={() => dispose()}
+                  config={config}
                 />
               ),
             popupRoot,
