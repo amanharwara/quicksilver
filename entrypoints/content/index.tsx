@@ -832,7 +832,7 @@ function ListSearch<Item>(props: ListSearchProps<Item>) {
           event.preventDefault();
           if (props.selectionType !== "multiple") return false;
           if (hasSelectedAll()) {
-            props.handleSelect([], true, event);
+            props.handleSelect(filtered(), true, event);
             return true;
           }
           const selectedItems: Item[] = [];
@@ -2100,11 +2100,8 @@ function TabList(props: { context: Context; cookieStoreId?: string }) {
     return containersMap;
   });
 
-  const [_selectedTabs, setSelectedTabs] = createSignal<Browser.tabs.Tab[]>([]);
-  const [hasSelectedAll, setHasSelectedAll] = createSignal(false);
-  const hasSomeSelection = () => _selectedTabs().length > 0 || hasSelectedAll();
-  const selectedTabs = () =>
-    hasSelectedAll() ? (tabs() ?? []) : _selectedTabs();
+  const [selectedTabs, setSelectedTabs] = createSignal<Browser.tabs.Tab[]>([]);
+  const hasSomeSelection = () => selectedTabs().length > 0;
 
   const tabActions = [
     {
@@ -2227,7 +2224,6 @@ function TabList(props: { context: Context; cookieStoreId?: string }) {
           }
           handleSelect={function selectTabs(items, selectAll) {
             setSelectedTabs(items);
-            setHasSelectedAll(selectAll);
           }}
         />
       </Popup>
