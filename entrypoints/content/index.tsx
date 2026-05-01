@@ -800,6 +800,7 @@ function ListSearch<Item>(props: ListSearchProps<Item>) {
           return true;
         case "C-arrowdown":
         case "arrowdown":
+          event.preventDefault();
           setFocusedIndex((index) => {
             const next = index + 1;
             const last = filtered().length - 1;
@@ -811,6 +812,7 @@ function ListSearch<Item>(props: ListSearchProps<Item>) {
           return true;
         case "C-arrowup":
         case "arrowup":
+          event.preventDefault();
           setFocusedIndex((index) => {
             const prev = index - 1;
             if (prev < 0) {
@@ -850,8 +852,10 @@ function ListSearch<Item>(props: ListSearchProps<Item>) {
           props.handleSelect(selectedItems, false, event);
           return true;
         }
-        case "C-a": {
+        case "S-A-a": {
+          event.preventDefault();
           if (props.selectionType !== "multiple") return false;
+          if (filtered().length === 0) return false;
           setHasSelectedAll(true);
           setSelectedIndices([]);
           return true;
