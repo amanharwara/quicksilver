@@ -6,6 +6,7 @@ export default defineConfig({
   manifest: ({ browser }) => {
     const permissions: string[] = [
       "tabs",
+      "clipboardRead",
       "clipboardWrite",
       "storage",
       "search",

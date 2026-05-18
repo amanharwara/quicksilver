@@ -2156,6 +2156,17 @@ function TabList(props: { context: Context; cookieStoreId?: string }) {
         }
       },
     },
+    {
+      name: "Copy tab URL(s)",
+      fn: function copyTabURLs() {
+        let urls: string[] = [];
+        for (const tab of selectedTabs()) {
+          if (!tab.url) continue;
+          urls.push(tab.url);
+        }
+        navigator.clipboard.writeText(urls.join("\n"));
+      },
+    },
   ];
 
   return (
@@ -2929,6 +2940,59 @@ function Config(props: { context: Context }) {
         </form>
       </Popup>
     </Show>
+  );
+}
+
+function OpenTabsFromListPopup(props: {
+  context: Context;
+  onClose: () => void;
+}) {
+  let textarea: HTMLTextAreaElement | undefined;
+  let form: HTMLFormElement | undefined;
+
+  onMount(() => {
+    textarea?.focus();
+  });
+
+  return (
+    <Popup
+      context={props.context}
+      onClose={props.onClose}
+      style={{
+        padding: "1rem",
+      }}
+    >
+      <form
+        ref={form}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!textarea) return;
+          const potentialURLs = textarea.value.split("\n");
+          for (const url of potentialURLs) {
+            try {
+              const parsed = new URL(url);
+              sendMessage("openNewTab", {
+                url: parsed.href,
+                background: false,
+              }).catch(console.error);
+            } catch {}
+          }
+          props.onClose();
+        }}
+      >
+        <p>Type or paste URL(s) to open, separated by newlines:</p>
+        <textarea
+          ref={textarea}
+          onKeyDown={(e) => {
+            if (e.ctrlKey && e.key === "Enter") {
+              e.preventDefault();
+              form?.requestSubmit();
+            }
+          }}
+        />
+        <button type="submit">Open</button>
+      </form>
+    </Popup>
   );
 }
 
@@ -3717,6 +3781,67 @@ function Root() {
       "w t n": {
         desc: "New tab to right",
         fn: openNewTabToRight,
+      },
+      "w t p": {
+        desc: "Load tabs from clipboard",
+        fn: function loadTabsFromClipboard() {
+          navigator.clipboard
+            .readText()
+            .then((clipboardText) => {
+              const potentialURLs = clipboardText.split("\n");
+              for (const url of potentialURLs) {
+                try {
+                  const parsed = new URL(url);
+                  sendMessage("openNewTab", {
+                    url: parsed.href,
+                    background: false,
+                  });
+                } catch {}
+              }
+            })
+            .catch(console.error);
+        },
+      },
+      "w t l": {
+        desc: "Load tabs from list",
+        fn: function loadTabsFromList() {
+          const popupRoot = context.popupRoot();
+          if (!popupRoot) return;
+          const dispose = render(
+            () => (
+              <OpenTabsFromListPopup
+                context={context}
+                onClose={() => dispose()}
+              />
+            ),
+            popupRoot,
+          );
+        },
+      },
+      "y t": {
+        desc: "Copy current tab URL",
+        fn: function copyCurrentTabURL() {
+          navigator.clipboard
+            .writeText(window.location.href)
+            .catch(console.error);
+        },
+      },
+      "y a t": {
+        desc: "Copy all tab URL(s)",
+        fn: function copyAllTabURLs() {
+          sendMessage("getAllTabs", undefined)
+            .then((tabs) => {
+              let urls: string[] = [];
+              for (const tab of tabs) {
+                if (!tab.url) continue;
+                urls.push(tab.url);
+              }
+              navigator.clipboard
+                .writeText(urls.join("\n"))
+                .catch(console.error);
+            })
+            .catch(console.error);
+        },
       },
     },
     [Mode.Highlight]: {},
