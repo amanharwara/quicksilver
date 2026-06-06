@@ -915,17 +915,22 @@ function ListSearch<Item>(props: ListSearchProps<Item>) {
             index={index()}
             focusedIndex={focusedIndex()}
             onClick={(event) => {
-              if (props.selectionType === "multiple") {
-                setSelectedIndices((indices) => {
-                  if (indices.includes(index())) {
-                    return indices.filter((i) => i !== index());
-                  } else {
-                    return [...indices, index()];
-                  }
-                  return indices;
-                });
-              } else {
-                props.handleSelect(item, event);
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              setFocusedIndex(index());
+              if (event.ctrlKey) {
+                if (props.selectionType === "multiple") {
+                  setSelectedIndices((indices) => {
+                    if (indices.includes(index())) {
+                      return indices.filter((i) => i !== index());
+                    } else {
+                      return [...indices, index()];
+                    }
+                    return indices;
+                  });
+                } else {
+                  props.handleSelect(item, event);
+                }
               }
             }}
             isSelected={selectedIndices().includes(index()) || hasSelectedAll()}
