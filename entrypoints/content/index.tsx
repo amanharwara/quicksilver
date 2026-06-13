@@ -862,6 +862,7 @@ function ListSearch<Item>(props: ListSearchProps<Item>) {
         }
         case "C-space":
         case "C-enter": {
+          event.preventDefault();
           if (props.selectionType !== "multiple") return false;
           setSelectedIndices((indices) => {
             const index = focusedIndex();
@@ -875,6 +876,7 @@ function ListSearch<Item>(props: ListSearchProps<Item>) {
           return true;
         }
         case "enter": {
+          event.preventDefault();
           if (props.selectionType === "multiple") {
             const index = focusedIndex();
             setSelectedIndices([index]);
