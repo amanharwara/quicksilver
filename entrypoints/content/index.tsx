@@ -2280,12 +2280,12 @@ function ContainerList(props: {
   handleSelect?: (item: Container) => void;
   onClose?: () => void;
 }) {
-  const [containers] = createResource(async function getAllTabs() {
+  const [containers] = createResource(async function getAllContainers() {
     const response = await sendMessage("getAllContainers", undefined);
     if (!Array.isArray(response)) {
       throw new Error("Did not receive correct response");
     }
-    return response;
+    return response.toSorted((a, b) => a.openTabs - b.openTabs);
   });
 
   const [selectedContainer, setSelectedContainer] = createSignal<Container>();
