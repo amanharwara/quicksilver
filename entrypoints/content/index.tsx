@@ -2285,7 +2285,7 @@ function ContainerList(props: {
     if (!Array.isArray(response)) {
       throw new Error("Did not receive correct response");
     }
-    return response.toSorted((a, b) => a.openTabs - b.openTabs);
+    return response.toSorted((a, b) => b.openTabs - a.openTabs);
   });
 
   const [selectedContainer, setSelectedContainer] = createSignal<Container>();
