@@ -721,7 +721,12 @@ function VirtualizedList<Item extends unknown>(props: {
 type ListSearchProps<Item> = {
   context: Context;
   items: Item[] | Accessor<Item[]>;
-  filter: (item: Item, lowercaseQuery: string) => boolean;
+  filter: (
+    item: Item,
+    query: string,
+    options: { matchCase: boolean; wholeWords: boolean },
+  ) => boolean;
+  searchOptions?: boolean;
   itemContent: (item: Item, isFocused: boolean, index: number) => JSX.Element;
   onFocusChange?: (item: Item) => void;
   itemProps?: ComponentProps<"button">;
@@ -752,6 +757,8 @@ function ListSearch<Item>(props: ListSearchProps<Item>) {
   const [selectedIndices, setSelectedIndices] = createSignal<number[]>([]);
   const [focusedIndex, setFocusedIndex] = createSignal(0);
   const [query, setQuery] = createSignal("");
+  const [matchCase, setMatchCase] = createSignal(false);
+  const [wholeWords, setWholeWords] = createSignal(false);
 
   createEffect(() => {
     const _ = query();
@@ -763,8 +770,13 @@ function ListSearch<Item>(props: ListSearchProps<Item>) {
     const items =
       typeof props.items === "function" ? props.items() : props.items;
     if (q.length === 0) return items;
-    const lowercaseQuery = q.toLowerCase();
-    return items.filter((item) => props.filter(item, lowercaseQuery));
+    const filterQuery = matchCase() ? q : q.toLowerCase();
+    return items.filter((item) =>
+      props.filter(item, filterQuery, {
+        matchCase: matchCase(),
+        wholeWords: wholeWords(),
+      }),
+    );
   });
 
   const focusedItem = createMemo(() => filtered()[focusedIndex()]);
@@ -959,6 +971,12 @@ function ListSearch<Item>(props: ListSearchProps<Item>) {
           "border-bottom-left-radius": rem(0.25),
           "border-bottom-right-radius": rem(0.25),
           "z-index": 1,
+          ...(props.searchOptions
+            ? {
+                "border-bottom-left-radius": 0,
+                "border-bottom-right-radius": 0,
+              }
+            : {}),
         }}
         value={query()}
         onInput={(event) => {
@@ -966,6 +984,38 @@ function ListSearch<Item>(props: ListSearchProps<Item>) {
           setQuery(event.target.value);
         }}
       />
+      <Show when={props.searchOptions}>
+        <div
+          style={{
+            display: "flex",
+            gap: rem(1),
+            padding: `${rem(0.4)} ${rem(1)}`,
+            "font-size": "smaller",
+            "border-top": "1px solid currentColor",
+          }}
+        >
+          <label
+            style={{ display: "flex", "align-items": "center", gap: rem(0.35) }}
+          >
+            <input
+              type="checkbox"
+              checked={matchCase()}
+              onChange={(event) => setMatchCase(event.target.checked)}
+            />
+            Match case
+          </label>
+          <label
+            style={{ display: "flex", "align-items": "center", gap: rem(0.35) }}
+          >
+            <input
+              type="checkbox"
+              checked={wholeWords()}
+              onChange={(event) => setWholeWords(event.target.checked)}
+            />
+            Whole words
+          </label>
+        </div>
+      </Show>
     </div>
   );
 }
@@ -2188,6 +2238,7 @@ function TabList(props: { context: Context; cookieStoreId?: string }) {
           selectionType="multiple"
           context={props.context}
           items={tabs()!}
+          searchOptions
           itemContent={(tab) => (
             <>
               <div
@@ -2238,12 +2289,25 @@ function TabList(props: { context: Context; cookieStoreId?: string }) {
               </div>
             </>
           )}
-          filter={(item, lowercaseQuery) =>
-            Boolean(
-              item.title?.toLowerCase().includes(lowercaseQuery) ||
-              item.url?.toLowerCase().includes(lowercaseQuery),
-            )
-          }
+          filter={(item, query, options) => {
+            const fields = [item.title, item.url].filter(
+              (field): field is string => Boolean(field),
+            );
+            if (!options.wholeWords) {
+              return fields.some((field) => {
+                const value = options.matchCase ? field : field.toLowerCase();
+                return value.includes(query);
+              });
+            }
+
+            const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const flags = options.matchCase ? "u" : "iu";
+            const wordMatch = new RegExp(
+              `(?:^|[^\\p{L}\\p{N}_])${escapedQuery}(?=$|[^\\p{L}\\p{N}_])`,
+              flags,
+            );
+            return fields.some((field) => wordMatch.test(field));
+          }}
           handleSelect={function selectTabs(items, selectAll) {
             setSelectedTabs(items);
           }}
